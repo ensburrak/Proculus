@@ -1,0 +1,292 @@
+=== ALL SPLIT MODULES INVENTORY ===
+
+Facade: ai_batch_manager.py
+  Split Dir: _split\ai_batch_manager (3 parts)
+    - _split\ai_batch_manager\part_0001.py
+    - _split\ai_batch_manager\part_0002.py
+    - _split\ai_batch_manager\part_0003.py
+----------------------------------------
+Facade: analyzer.py
+  Split Dir: _split\analyzer (4 parts)
+    - _split\analyzer\part_0001.py
+    - _split\analyzer\part_0002.py
+    - _split\analyzer\part_0003.py
+    - _split\analyzer\part_0004.py
+----------------------------------------
+Facade: cross_asset_signals.py
+  Split Dir: _split\cross_asset_signals (3 parts)
+    - _split\cross_asset_signals\part_0001.py
+    - _split\cross_asset_signals\part_0002.py
+    - _split\cross_asset_signals\part_0003.py
+----------------------------------------
+Facade: health_monitor.py
+  Split Dir: _split\health_monitor (3 parts)
+    - _split\health_monitor\part_0001.py
+    - _split\health_monitor\part_0002.py
+    - _split\health_monitor\part_0003.py
+----------------------------------------
+Facade: order_plan_services.py
+  Split Dir: _split\order_plan_services (5 parts)
+    - _split\order_plan_services\part_0001.py
+    - _split\order_plan_services\part_0002.py
+    - _split\order_plan_services\part_0003.py
+    - _split\order_plan_services\part_0004.py
+    - _split\order_plan_services\part_0005.py
+----------------------------------------
+Facade: portfolio_optimizer.py
+  Split Dir: _split\portfolio_optimizer (3 parts)
+    - _split\portfolio_optimizer\part_0001.py
+    - _split\portfolio_optimizer\part_0002.py
+    - _split\portfolio_optimizer\part_0003.py
+----------------------------------------
+Facade: regime_detector.py
+  Split Dir: _split\regime_detector (4 parts)
+    - _split\regime_detector\part_0001.py
+    - _split\regime_detector\part_0002.py
+    - _split\regime_detector\part_0003.py
+    - _split\regime_detector\part_0004.py
+----------------------------------------
+Facade: smart_exit_manager.py
+  Split Dir: _split\smart_exit_manager (3 parts)
+    - _split\smart_exit_manager\part_0001.py
+    - _split\smart_exit_manager\part_0002.py
+    - _split\smart_exit_manager\part_0003.py
+----------------------------------------
+Facade: _trade_quality_gate_static.py
+  Split Dir: _split\_trade_quality_gate_static (3 parts)
+    - _split\_trade_quality_gate_static\part_0001.py
+    - _split\_trade_quality_gate_static\part_0002.py
+    - _split\_trade_quality_gate_static\part_0003.py
+----------------------------------------
+Facade: ai\batch_orchestrator.py
+  Split Dir: ai\_split\batch_orchestrator (7 parts)
+    - ai\_split\batch_orchestrator\part_0001.py
+    - ai\_split\batch_orchestrator\part_0002.py
+    - ai\_split\batch_orchestrator\part_0003.py
+    - ai\_split\batch_orchestrator\part_0004.py
+    - ai\_split\batch_orchestrator\part_0005.py
+    - ai\_split\batch_orchestrator\part_0006.py
+    - ai\_split\batch_orchestrator\part_0007.py
+----------------------------------------
+Facade: ai\llm_cost_optimizer.py
+  Split Dir: ai\_split\llm_cost_optimizer (7 parts)
+    - ai\_split\llm_cost_optimizer\part_0001.py
+    - ai\_split\llm_cost_optimizer\part_0002.py
+    - ai\_split\llm_cost_optimizer\part_0003.py
+    - ai\_split\llm_cost_optimizer\part_0004.py
+    - ai\_split\llm_cost_optimizer\part_0005.py
+    - ai\_split\llm_cost_optimizer\part_0006.py
+    - ai\_split\llm_cost_optimizer\part_0007.py
+----------------------------------------
+Facade: analysis\symbol_regime.py
+  Split Dir: analysis\_split\symbol_regime (3 parts)
+    - analysis\_split\symbol_regime\part_0001.py
+    - analysis\_split\symbol_regime\part_0002.py
+    - analysis\_split\symbol_regime\part_0003.py
+----------------------------------------
+Facade: api\routes\config.py
+  Split Dir: api\routes\_split\config (6 parts)
+    - api\routes\_split\config\part_0001.py
+    - api\routes\_split\config\part_0002.py
+    - api\routes\_split\config\part_0003.py
+    - api\routes\_split\config\part_0004.py
+    - api\routes\_split\config\part_0005.py
+    - api\routes\_split\config\part_0006.py
+----------------------------------------
+Facade: api\routes\dashboard.py
+  Split Dir: api\routes\_split\dashboard (4 parts)
+    - api\routes\_split\dashboard\part_0001.py
+    - api\routes\_split\dashboard\part_0002.py
+    - api\routes\_split\dashboard\part_0003.py
+    - api\routes\_split\dashboard\part_0004.py
+----------------------------------------
+Facade: bot\_command_handler_static.py
+  Split Dir: bot\_split\_command_handler_static (3 parts)
+    - bot\_split\_command_handler_static\part_0001.py
+    - bot\_split\_command_handler_static\part_0002.py
+    - bot\_split\_command_handler_static\part_0003.py
+----------------------------------------
+Facade: bot\_order_processing_static.py
+  Split Dir: bot\_split\_order_processing_static (3 parts)
+    - bot\_split\_order_processing_static\part_0001.py
+    - bot\_split\_order_processing_static\part_0002.py
+    - bot\_split\_order_processing_static\part_0003.py
+----------------------------------------
+Facade: core\execution_router.py
+  Split Dir: core\_split\execution_router (2 parts)
+    - core\_split\execution_router\part_0001.py
+    - core\_split\execution_router\part_0002.py
+----------------------------------------
+Facade: core\order_executor.py
+  Split Dir: core\_split\order_executor (3 parts)
+    - core\_split\order_executor\part_0001.py
+    - core\_split\order_executor\part_0002.py
+    - core\_split\order_executor\part_0003.py
+----------------------------------------
+Facade: core\engine\analysis_execution.py
+  Split Dir: core\engine\_split\analysis_execution (2 parts)
+    - core\engine\_split\analysis_execution\part_0001.py
+    - core\engine\_split\analysis_execution\part_0002.py
+----------------------------------------
+Facade: decision\official_pipeline.py
+  Split Dir: decision\_split\official_pipeline (4 parts)
+    - decision\_split\official_pipeline\part_0001.py
+    - decision\_split\official_pipeline\part_0002.py
+    - decision\_split\official_pipeline\part_0003.py
+    - decision\_split\official_pipeline\part_0004.py
+----------------------------------------
+Facade: decision\_risk_models_static.py
+  Split Dir: decision\_split\_risk_models_static (6 parts)
+    - decision\_split\_risk_models_static\part_0001.py
+    - decision\_split\_risk_models_static\part_0002.py
+    - decision\_split\_risk_models_static\part_0003.py
+    - decision\_split\_risk_models_static\part_0004.py
+    - decision\_split\_risk_models_static\part_0005.py
+    - decision\_split\_risk_models_static\part_0006.py
+----------------------------------------
+Facade: decision\_score_calculator_static.py
+  Split Dir: decision\_split\_score_calculator_static (9 parts)
+    - decision\_split\_score_calculator_static\part_0001.py
+    - decision\_split\_score_calculator_static\part_0002.py
+    - decision\_split\_score_calculator_static\part_0003.py
+    - decision\_split\_score_calculator_static\part_0004.py
+    - decision\_split\_score_calculator_static\part_0005.py
+    - decision\_split\_score_calculator_static\part_0006.py
+    - decision\_split\_score_calculator_static\part_0007.py
+    - decision\_split\_score_calculator_static\part_0008.py
+    - decision\_split\_score_calculator_static\part_0009.py
+----------------------------------------
+Facade: decision\_score_calculator_impl_parts\part_03.py
+  Split Dir: decision\_score_calculator_impl_parts\_split\part_03 (2 parts)
+    - decision\_score_calculator_impl_parts\_split\part_03\part_0001.py
+    - decision\_score_calculator_impl_parts\_split\part_03\part_0002.py
+----------------------------------------
+Facade: execution\safe_order_wrapper.py
+  Split Dir: execution\_split\safe_order_wrapper (5 parts)
+    - execution\_split\safe_order_wrapper\part_0001.py
+    - execution\_split\safe_order_wrapper\part_0002.py
+    - execution\_split\safe_order_wrapper\part_0003.py
+    - execution\_split\safe_order_wrapper\part_0004.py
+    - execution\_split\safe_order_wrapper\part_0005.py
+----------------------------------------
+Facade: execution\trade_logger.py
+  Split Dir: execution\_split\trade_logger (8 parts)
+    - execution\_split\trade_logger\part_0001.py
+    - execution\_split\trade_logger\part_0002.py
+    - execution\_split\trade_logger\part_0003.py
+    - execution\_split\trade_logger\part_0004.py
+    - execution\_split\trade_logger\part_0005.py
+    - execution\_split\trade_logger\part_0006.py
+    - execution\_split\trade_logger\part_0007.py
+    - execution\_split\trade_logger\part_0008.py
+----------------------------------------
+Facade: ml\model_loader.py
+  Split Dir: ml\_split\model_loader (4 parts)
+    - ml\_split\model_loader\part_0001.py
+    - ml\_split\model_loader\part_0002.py
+    - ml\_split\model_loader\part_0003.py
+    - ml\_split\model_loader\part_0004.py
+----------------------------------------
+Facade: ml\online_learning.py
+  Split Dir: ml\_split\online_learning (4 parts)
+    - ml\_split\online_learning\part_0001.py
+    - ml\_split\online_learning\part_0002.py
+    - ml\_split\online_learning\part_0003.py
+    - ml\_split\online_learning\part_0004.py
+----------------------------------------
+Facade: ml\rl_bot_integration.py
+  Split Dir: ml\_split\rl_bot_integration (3 parts)
+    - ml\_split\rl_bot_integration\part_0001.py
+    - ml\_split\rl_bot_integration\part_0002.py
+    - ml\_split\rl_bot_integration\part_0003.py
+----------------------------------------
+Facade: ml\rl_train.py
+  Split Dir: ml\_split\rl_train (3 parts)
+    - ml\_split\rl_train\part_0001.py
+    - ml\_split\rl_train\part_0002.py
+    - ml\_split\rl_train\part_0003.py
+----------------------------------------
+Facade: ml\rl_unified_manager.py
+  Split Dir: ml\_split\rl_unified_manager (3 parts)
+    - ml\_split\rl_unified_manager\part_0001.py
+    - ml\_split\rl_unified_manager\part_0002.py
+    - ml\_split\rl_unified_manager\part_0003.py
+----------------------------------------
+Facade: paper_trading\paper_exchange.py
+  Split Dir: paper_trading\_split\paper_exchange (3 parts)
+    - paper_trading\_split\paper_exchange\part_0001.py
+    - paper_trading\_split\paper_exchange\part_0002.py
+    - paper_trading\_split\paper_exchange\part_0003.py
+----------------------------------------
+Facade: runtime\main_entry.py
+  Split Dir: runtime\_split\main_entry (3 parts)
+    - runtime\_split\main_entry\part_0001.py
+    - runtime\_split\main_entry\part_0002.py
+    - runtime\_split\main_entry\part_0003.py
+----------------------------------------
+Facade: runtime\runtime_loop_services.py
+  Split Dir: runtime\_split\runtime_loop_services (11 parts)
+    - runtime\_split\runtime_loop_services\part_0001.py
+    - runtime\_split\runtime_loop_services\part_0002.py
+    - runtime\_split\runtime_loop_services\part_0003.py
+    - runtime\_split\runtime_loop_services\part_0004.py
+    - runtime\_split\runtime_loop_services\part_0005.py
+    - runtime\_split\runtime_loop_services\part_0006.py
+    - runtime\_split\runtime_loop_services\part_0007.py
+    - runtime\_split\runtime_loop_services\part_0008.py
+    - runtime\_split\runtime_loop_services\part_0009.py
+    - runtime\_split\runtime_loop_services\part_0010.py
+    - runtime\_split\runtime_loop_services\part_0011.py
+----------------------------------------
+Facade: runtime\runtime_main_service.py
+  Split Dir: runtime\_split\runtime_main_service (4 parts)
+    - runtime\_split\runtime_main_service\part_0001.py
+    - runtime\_split\runtime_main_service\part_0002.py
+    - runtime\_split\runtime_main_service\part_0003.py
+    - runtime\_split\runtime_main_service\part_0004.py
+----------------------------------------
+Facade: tests\unit\test_ai_batch_orchestrator_unit.py
+  Split Dir: tests\unit\_split\test_ai_batch_orchestrator_unit (4 parts)
+    - tests\unit\_split\test_ai_batch_orchestrator_unit\part_0001.py
+    - tests\unit\_split\test_ai_batch_orchestrator_unit\part_0002.py
+    - tests\unit\_split\test_ai_batch_orchestrator_unit\part_0003.py
+    - tests\unit\_split\test_ai_batch_orchestrator_unit\part_0004.py
+----------------------------------------
+Facade: tests\unit\test_analysis_execution_unit.py
+  Split Dir: tests\unit\_split\test_analysis_execution_unit (4 parts)
+    - tests\unit\_split\test_analysis_execution_unit\part_0001.py
+    - tests\unit\_split\test_analysis_execution_unit\part_0002.py
+    - tests\unit\_split\test_analysis_execution_unit\part_0003.py
+    - tests\unit\_split\test_analysis_execution_unit\part_0004.py
+----------------------------------------
+Facade: tests\unit\test_decision_risk_models_unit.py
+  Split Dir: tests\unit\_split\test_decision_risk_models_unit (3 parts)
+    - tests\unit\_split\test_decision_risk_models_unit\part_0001.py
+    - tests\unit\_split\test_decision_risk_models_unit\part_0002.py
+    - tests\unit\_split\test_decision_risk_models_unit\part_0003.py
+----------------------------------------
+Facade: tests\unit\test_decision_score_calculator_unit.py
+  Split Dir: tests\unit\_split\test_decision_score_calculator_unit (3 parts)
+    - tests\unit\_split\test_decision_score_calculator_unit\part_0001.py
+    - tests\unit\_split\test_decision_score_calculator_unit\part_0002.py
+    - tests\unit\_split\test_decision_score_calculator_unit\part_0003.py
+----------------------------------------
+Facade: tests\unit\test_llm_cost_optimizer_unit.py
+  Split Dir: tests\unit\_split\test_llm_cost_optimizer_unit (6 parts)
+    - tests\unit\_split\test_llm_cost_optimizer_unit\part_0001.py
+    - tests\unit\_split\test_llm_cost_optimizer_unit\part_0002.py
+    - tests\unit\_split\test_llm_cost_optimizer_unit\part_0003.py
+    - tests\unit\_split\test_llm_cost_optimizer_unit\part_0004.py
+    - tests\unit\_split\test_llm_cost_optimizer_unit\part_0005.py
+    - tests\unit\_split\test_llm_cost_optimizer_unit\part_0006.py
+----------------------------------------
+Facade: tools\auto_updater_cli.py
+  Split Dir: tools\_split\auto_updater_cli (5 parts)
+    - tools\_split\auto_updater_cli\part_0001.py
+    - tools\_split\auto_updater_cli\part_0002.py
+    - tools\_split\auto_updater_cli\part_0003.py
+    - tools\_split\auto_updater_cli\part_0004.py
+    - tools\_split\auto_updater_cli\part_0005.py
+----------------------------------------
+Facade: tools\split_large_python_modules.py
+----------------------------------------

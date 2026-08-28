@@ -1,0 +1,90 @@
+# =============================================================================
+# AutoTraderBot - Pinned Dependencies
+# pyproject.toml is the canonical dependency declaration.
+# This file is kept for legacy pip/Docker installs.
+# =============================================================================
+
+# Core dependencies
+ccxt==4.5.14
+python-dotenv==1.2.2
+requests==2.33.0
+idna==3.15
+urllib3==2.7.0
+pandas==2.3.3
+numpy==2.3.5
+ta-lib==0.6.8
+
+# Machine Learning
+torch==2.11.0
+scikit-learn==1.7.2
+stable-baselines3==2.7.0
+
+# Optional: gymnasium for RL environments
+gymnasium==1.2.2
+
+# Web framework for dashboard
+streamlit==1.54.0
+GitPython==3.1.50
+protobuf==6.33.5
+tornado==6.5.5
+
+# Async support
+aiohttp==3.13.4
+websockets==15.0.1
+
+# Scheduling
+schedule==1.2.2
+
+# Logging and monitoring
+prometheus-client==0.23.1
+
+# Data processing
+pyarrow==24.0.0
+openpyxl==3.1.5
+PyYAML==6.0.2
+
+# API clients
+openai==2.24.0
+
+# Utilities
+psutil==5.9.8
+filelock==3.29.0
+setuptools==81.0.0
+wheel==0.46.2
+fonttools==4.60.2
+
+# XML parsing (for RSS feeds)
+lxml==6.1.0
+
+# Optional: For Binance signed requests
+pycryptodome==3.23.0
+
+# Advanced ML (C-Group)
+optuna==4.3.0
+Mako==1.3.12
+lightgbm==4.6.0
+xgboost==3.2.0
+statsmodels==0.14.6
+scipy==1.16.3
+
+# Testing
+pytest==9.0.3
+pytest-asyncio==1.3.0
+pytest-xdist==3.8.0
+hypothesis==6.152.1
+
+# Web API (FastAPI backend)
+fastapi==0.136.3
+starlette==1.2.1
+uvicorn==0.41.0
+python-multipart==0.0.27
+
+# Progress bars
+tqdm==4.67.1
+Pygments==2.20.0
+Werkzeug==3.1.6
+
+# Cryptography
+cryptography==46.0.7
+
+# React frontend dependencies are in frontend/package.json

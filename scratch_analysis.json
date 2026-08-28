@@ -1,0 +1,2357 @@
+{
+  "analysis/delta_divergence.py": {
+    "size": 6129,
+    "classes": [
+      "DeltaDivergenceResult"
+    ],
+    "functions": [
+      "calculate_cvd",
+      "detect_delta_divergence"
+    ]
+  },
+  "analysis/entropy_analysis.py": {
+    "size": 5527,
+    "classes": [
+      "EntropyResult"
+    ],
+    "functions": [
+      "_sample_entropy",
+      "_fast_sample_entropy",
+      "analyze_entropy"
+    ]
+  },
+  "analysis/granger_causality.py": {
+    "size": 10702,
+    "classes": [
+      "GrangerPairResult",
+      "LeadLagSignal",
+      "GrangerCausalityManager"
+    ],
+    "functions": [
+      "test_granger_causality",
+      "find_lead_lag_pairs",
+      "get_lead_lag_signal",
+      "get_granger_manager"
+    ]
+  },
+  "analysis/heikin_ashi.py": {
+    "size": 5980,
+    "classes": [
+      "HeikinAshiResult"
+    ],
+    "functions": [
+      "calculate_heikin_ashi",
+      "analyze_heikin_ashi"
+    ]
+  },
+  "analysis/hurst_exponent.py": {
+    "size": 6131,
+    "classes": [
+      "HurstResult"
+    ],
+    "functions": [
+      "calculate_hurst_rs",
+      "calculate_hurst_dfa",
+      "analyze_hurst"
+    ]
+  },
+  "analysis/iceberg_detector.py": {
+    "size": 9995,
+    "classes": [
+      "IcebergSignal",
+      "IcebergResult",
+      "IcebergDetector"
+    ],
+    "functions": [
+      "get_iceberg_detector"
+    ]
+  },
+  "analysis/indicator_config.py": {
+    "size": 1291,
+    "classes": [],
+    "functions": []
+  },
+  "analysis/indicator_math.py": {
+    "size": 4161,
+    "classes": [],
+    "functions": [
+      "_to_float_series",
+      "wilder_rsi",
+      "stochastic_rsi",
+      "true_range",
+      "wilder_dmi_adx"
+    ]
+  },
+  "analysis/kalman_filter.py": {
+    "size": 7477,
+    "classes": [
+      "KalmanResult",
+      "SimpleKalmanFilter"
+    ],
+    "functions": [
+      "apply_kalman_filter",
+      "analyze_kalman"
+    ]
+  },
+  "analysis/macro_sensor.py": {
+    "size": 15928,
+    "classes": [],
+    "functions": [
+      "_compute_ema_trend",
+      "classify_macro_regime",
+      "fetch_macro_indicators",
+      "_macro_loop",
+      "start_macro_sensor",
+      "get_macro_state"
+    ]
+  },
+  "analysis/market_structure.py": {
+    "size": 8619,
+    "classes": [
+      "SwingPoint",
+      "MarketStructureResult"
+    ],
+    "functions": [
+      "detect_swing_points",
+      "_classify_swing_pattern",
+      "analyze_market_structure"
+    ]
+  },
+  "analysis/microstructure.py": {
+    "size": 16119,
+    "classes": [
+      "MicrostructureSnapshot",
+      "MicrostructureAnalyzer"
+    ],
+    "functions": [
+      "get_microstructure_analyzer",
+      "get_microstructure_features"
+    ]
+  },
+  "analysis/mtf_analyzer.py": {
+    "size": 8456,
+    "classes": [
+      "Trend",
+      "TimeframeAnalysis",
+      "MTFResult",
+      "MTFAnalyzer"
+    ],
+    "functions": [
+      "_safe_float",
+      "get_mtf_analyzer"
+    ]
+  },
+  "analysis/oi_divergence.py": {
+    "size": 6714,
+    "classes": [
+      "OIDivergenceResult"
+    ],
+    "functions": [
+      "analyze_oi_divergence",
+      "analyze_oi_from_metrics"
+    ]
+  },
+  "analysis/orderbook_analyzer.py": {
+    "size": 3805,
+    "classes": [
+      "OrderBookAnalyzer"
+    ],
+    "functions": []
+  },
+  "analysis/regime.py": {
+    "size": 15786,
+    "classes": [
+      "RegimeData",
+      "RegimeDataRecord"
+    ],
+    "functions": [
+      "_coerce_float",
+      "normalize_regime_name",
+      "_normalize_subregime",
+      "_infer_volatility_state",
+      "_infer_choppiness",
+      "_infer_dmi",
+      "_is_compression",
+      "_is_conflict",
+      "_is_shock",
+      "_is_transition",
+      "_infer_long_bias",
+      "_infer_confidence",
+      "_regime_quality",
+      "normalize_regime_data",
+      "normalize_regime_record",
+      "load_current_regime",
+      "get_current_regime",
+      "get_regime_name",
+      "get_long_bias",
+      "get_regime_trade_adjustment",
+      "get_regime_multiplier",
+      "is_regime_aligned",
+      "get_allowed_horizons",
+      "is_horizon_allowed"
+    ]
+  },
+  "analysis/sentiment.py": {
+    "size": 10692,
+    "classes": [
+      "SentimentScore",
+      "SentimentAnalyzer"
+    ],
+    "functions": [
+      "get_sentiment_analyzer",
+      "_record_error",
+      "_record_success",
+      "get_sensor_status",
+      "get_aggregated_sentiment"
+    ]
+  },
+  "analysis/social_sentiment_updater.py": {
+    "size": 3134,
+    "classes": [
+      "SocialSentimentUpdater"
+    ],
+    "functions": [
+      "update_social_sentiment"
+    ]
+  },
+  "analysis/spoofing_detector.py": {
+    "size": 9613,
+    "classes": [
+      "SpoofEvent",
+      "SpoofingResult",
+      "SpoofingDetector"
+    ],
+    "functions": [
+      "get_spoofing_detector"
+    ]
+  },
+  "analysis/symbol_regime.py": {
+    "size": 37115,
+    "classes": [
+      "_TFState"
+    ],
+    "functions": [
+      "_as_float",
+      "_clamp",
+      "_pct_to_decimal",
+      "_iso_timestamp",
+      "_canonical_symbol",
+      "_normalize_frame",
+      "_extract_timestamp_series",
+      "_frame_invalid",
+      "_validate_frame",
+      "_ema",
+      "_rsi",
+      "_atr_pct",
+      "_vol_z",
+      "_atr_pct_series",
+      "_vol_z_series",
+      "_rolling_percentile",
+      "_directional_score",
+      "_compression_score",
+      "_range_score",
+      "_compute_tf_state",
+      "_resolve_market_bias",
+      "_runtime_shock_state",
+      "_cooldown_seconds",
+      "_apply_regime_memory",
+      "detect_symbol_regime_context"
+    ]
+  },
+  "analysis/technical_consensus.py": {
+    "size": 7991,
+    "classes": [
+      "EvidenceFamily"
+    ],
+    "functions": [
+      "_f",
+      "_directional_family",
+      "compute_evidence_families",
+      "summarize_consensus"
+    ]
+  },
+  "analysis/technical_inventory.py": {
+    "size": 21014,
+    "classes": [],
+    "functions": [
+      "_as_float",
+      "_strip_known_suffix",
+      "_normalize_ohlcv_frame",
+      "_as_frame",
+      "_pick_frame",
+      "_pick_timeframe_frame",
+      "_last_close",
+      "_last_from_columns",
+      "_ema_close",
+      "_macd_from_close",
+      "_set_if_missing",
+      "_augment_mtf_trend_gate_fields",
+      "session_vwap",
+      "anchored_vwap",
+      "donchian_channel",
+      "volume_expansion_ratio",
+      "_last_valid_float",
+      "_previous_valid_float",
+      "stoch_rsi_inventory",
+      "atr14_pct",
+      "choppiness_index",
+      "dmi",
+      "bollinger_metrics",
+      "on_balance_volume",
+      "chaikin_money_flow",
+      "augment_ta_with_inventory"
+    ]
+  },
+  "analysis/technical_voting.py": {
+    "size": 8159,
+    "classes": [],
+    "functions": [
+      "_strength_from_ratio",
+      "_macd_strength",
+      "compute_technical_vote"
+    ]
+  },
+  "analysis/tick_analysis.py": {
+    "size": 7441,
+    "classes": [
+      "TickAnalysisResult"
+    ],
+    "functions": [
+      "estimate_tick_metrics_from_ohlcv",
+      "detect_price_clustering",
+      "analyze_tick_data"
+    ]
+  },
+  "analysis/trade_flow_imbalance.py": {
+    "size": 6743,
+    "classes": [
+      "TradeFlowResult"
+    ],
+    "functions": [
+      "classify_aggressor_from_trades",
+      "analyze_trade_flow"
+    ]
+  },
+  "analysis/volume_profile.py": {
+    "size": 8807,
+    "classes": [
+      "VolumeNode",
+      "VolumeProfileResult"
+    ],
+    "functions": [
+      "calculate_volume_profile",
+      "get_volume_profile_for_sl_tp"
+    ]
+  },
+  "analysis/vpin.py": {
+    "size": 7248,
+    "classes": [
+      "VPINResult"
+    ],
+    "functions": [
+      "classify_trade_direction",
+      "calculate_vpin",
+      "analyze_vpin"
+    ]
+  },
+  "analysis/wavelet_analysis.py": {
+    "size": 7348,
+    "classes": [
+      "WaveletResult"
+    ],
+    "functions": [
+      "_haar_decompose",
+      "_haar_reconstruct_approx",
+      "wavelet_decompose",
+      "analyze_wavelet"
+    ]
+  },
+  "decision/strategy_experts/bear_trend.py": {
+    "size": 18009,
+    "classes": [
+      "BearTrendExpert"
+    ],
+    "functions": []
+  },
+  "decision/strategy_experts/bull_trend.py": {
+    "size": 18244,
+    "classes": [
+      "BullTrendExpert"
+    ],
+    "functions": []
+  },
+  "decision/strategy_experts/compression_breakout.py": {
+    "size": 15751,
+    "classes": [
+      "CompressionBreakoutExpert"
+    ],
+    "functions": []
+  },
+  "decision/strategy_experts/cross_sectional_momentum.py": {
+    "size": 4918,
+    "classes": [
+      "CrossSectionalMomentumExpert"
+    ],
+    "functions": []
+  },
+  "decision/strategy_experts/funding_oi_crowding_unwind.py": {
+    "size": 11456,
+    "classes": [
+      "FundingOiUnwindProfile",
+      "FundingOiCrowdingUnwindExpert"
+    ],
+    "functions": [
+      "logic_fingerprint",
+      "_atr",
+      "_session_vwap",
+      "_asof_positions"
+    ]
+  },
+  "decision/strategy_experts/hourly_trend_v1.py": {
+    "size": 11268,
+    "classes": [
+      "HourlyTrendCandidateConfig",
+      "_HourlyTrendCandidateExpert",
+      "BullHourlyTrendV1Expert",
+      "BearHourlyTrendV1Expert"
+    ],
+    "functions": [
+      "_ema",
+      "_finite_last",
+      "_canonical_htf_frame",
+      "confirm_hourly_trend_reentry"
+    ]
+  },
+  "decision/strategy_experts/idiosyncratic_shock_reversal.py": {
+    "size": 13797,
+    "classes": [
+      "IdiosyncraticShockProfile",
+      "IdiosyncraticShockReversalExpert"
+    ],
+    "functions": [
+      "logic_fingerprint",
+      "_closed_hourly_frame",
+      "_atr_before_shock",
+      "_robust_residual_state"
+    ]
+  },
+  "decision/strategy_experts/liquidity_sweep_reclaim.py": {
+    "size": 12251,
+    "classes": [
+      "LiquiditySweepProfile",
+      "LiquiditySweepReclaimExpert"
+    ],
+    "functions": [
+      "logic_fingerprint",
+      "_decision_time",
+      "_closed_hourly_frame",
+      "_atr_before_sweep"
+    ]
+  },
+  "decision/strategy_experts/orderflow_absorption.py": {
+    "size": 12086,
+    "classes": [
+      "OrderflowAbsorptionExpert"
+    ],
+    "functions": [
+      "_runtime_symbol",
+      "_decision_timestamp_ms",
+      "_validated_closed_frame",
+      "_prior_atr"
+    ]
+  },
+  "decision/strategy_experts/range_revert.py": {
+    "size": 12152,
+    "classes": [
+      "RangeRevertExpert"
+    ],
+    "functions": []
+  },
+  "decision/strategy_experts/reentry_v3.py": {
+    "size": 11235,
+    "classes": [
+      "PriceActionConfirmation",
+      "BullTrendReentryV3Expert",
+      "BearTrendReentryV3Expert",
+      "CompressionBreakoutRetestV3Expert"
+    ],
+    "functions": [
+      "_canonical_frame",
+      "confirm_trend_reentry",
+      "find_compression_breakout_retest"
+    ]
+  },
+  "decision/strategy_experts/state_machine_v4.py": {
+    "size": 7951,
+    "classes": [
+      "BullTrendStateV4Expert",
+      "BearTrendStateV4Expert",
+      "CompressionBreakoutStateV4Expert"
+    ],
+    "functions": [
+      "confirm_trend_state_machine"
+    ]
+  },
+  "decision/strategy_experts/stochrsi_opportunity.py": {
+    "size": 2169,
+    "classes": [
+      "StochRsiOpportunityExpert"
+    ],
+    "functions": []
+  },
+  "decision/strategy_experts/technical_consensus.py": {
+    "size": 4612,
+    "classes": [
+      "TechnicalConsensusExpert"
+    ],
+    "functions": [
+      "_thresholds"
+    ]
+  },
+  "decision/strategy_experts/transition_confirm.py": {
+    "size": 19545,
+    "classes": [
+      "TransitionConfirmExpert"
+    ],
+    "functions": [
+      "_canonical_ohlcv_frame",
+      "_atr_pct_series",
+      "_rolling_percentile",
+      "_derive_closed_candle_confirmation"
+    ]
+  },
+  "decision/strategy_experts/utc_session_range_expansion.py": {
+    "size": 5816,
+    "classes": [
+      "UtcSessionRangeExpansionExpert"
+    ],
+    "functions": [
+      "_closed_hourly_frame"
+    ]
+  },
+  "decision/ai_authority_policy.py": {
+    "size": 12420,
+    "classes": [
+      "ModelAuthority",
+      "AIAuthoritySnapshot",
+      "AuthorityCheck"
+    ],
+    "functions": [
+      "_weight",
+      "_configured_weight",
+      "_policy_hash",
+      "resolve_ai_authority",
+      "assert_deterministic_authority",
+      "build_execution_ai_view",
+      "build_shadow_ai_audit"
+    ]
+  },
+  "decision/ai_batch_calibration.py": {
+    "size": 2392,
+    "classes": [],
+    "functions": [
+      "_logit",
+      "_calibration_is_stale",
+      "calibrate_confidence"
+    ]
+  },
+  "decision/ai_batch_fallbacks.py": {
+    "size": 3394,
+    "classes": [],
+    "functions": [
+      "should_use_model_fallback",
+      "normalize_provider_record",
+      "build_symbol_index",
+      "resolve_provider_result",
+      "build_disabled_provider_result"
+    ]
+  },
+  "decision/ai_batch_merge.py": {
+    "size": 16366,
+    "classes": [],
+    "functions": [
+      "_safe_float",
+      "build_merged_symbol_payload"
+    ]
+  },
+  "decision/ai_batch_status.py": {
+    "size": 1541,
+    "classes": [],
+    "functions": [
+      "provider_is_config_disabled",
+      "classify_provider_status",
+      "build_provider_detail"
+    ]
+  },
+  "decision/ai_trade_reviewer.py": {
+    "size": 18789,
+    "classes": [],
+    "functions": [
+      "_now_iso",
+      "_ensure_state_files",
+      "_safe_float",
+      "_build_review_request",
+      "_should_review",
+      "_quality_label_from_payload",
+      "_build_deterministic_review",
+      "_extract_message_content",
+      "_parse_llm_review",
+      "_call_review_provider",
+      "_generate_llm_review",
+      "_append_edge_review_event",
+      "_process_review_request",
+      "schedule_post_trade_review",
+      "_build_deterministic_operator_summary",
+      "_generate_llm_operator_summary",
+      "generate_operator_summary"
+    ]
+  },
+  "decision/arbitrage_sensor.py": {
+    "size": 9859,
+    "classes": [
+      "ArbitrageSignal",
+      "PairArbitrageSensor"
+    ],
+    "functions": [
+      "create_sensor"
+    ]
+  },
+  "decision/audit_replay.py": {
+    "size": 4492,
+    "classes": [],
+    "functions": [
+      "_canonical_signal",
+      "_hash",
+      "_project",
+      "build_replayable_decision_audit",
+      "replay_decision_audit"
+    ]
+  },
+  "decision/authority_matrix.py": {
+    "size": 5653,
+    "classes": [],
+    "functions": [
+      "build_decision_authority_matrix"
+    ]
+  },
+  "decision/calibration_proposals.py": {
+    "size": 1125,
+    "classes": [],
+    "functions": [
+      "build_calibration_proposals"
+    ]
+  },
+  "decision/context_fingerprint.py": {
+    "size": 6517,
+    "classes": [
+      "ContextFingerprint"
+    ],
+    "functions": [
+      "_safe_float",
+      "_extract_base_symbol",
+      "_bucket_adx",
+      "_bucket_rsi",
+      "_bucket_atr",
+      "_bucket_vol_z",
+      "_bucket_funding",
+      "_bucket_imbalance",
+      "_bucket_spread",
+      "_symbol_group",
+      "build_context_fingerprint"
+    ]
+  },
+  "decision/controller_batch_runtime.py": {
+    "size": 13811,
+    "classes": [],
+    "functions": [
+      "_decision_state",
+      "_send_ai_failure_notification",
+      "_provider_failure_stats",
+      "_record_llm_batch_state",
+      "_apply_no_trade_override",
+      "_apply_confidence_penalty",
+      "_safe_sigmoid",
+      "_load_global_sentiment",
+      "_horizon_multiplier",
+      "_is_horizon_allowed",
+      "_apply_llm_direction_override",
+      "_apply_global_sentiment_adjustment",
+      "build_batch_prompt",
+      "_compress_high_confidence",
+      "is_llm_tech_only_mode",
+      "_load_decision_weights",
+      "_load_risk_models",
+      "_ai_quality_factor",
+      "_get_current_regime",
+      "_get_regime_adjustment",
+      "_tech_score",
+      "_enhanced_tech_score",
+      "_sent_score",
+      "_lev_from_master",
+      "_base_decision_from_ema",
+      "build_batch_runtime"
+    ]
+  },
+  "decision/controller_batch_service.py": {
+    "size": 21935,
+    "classes": [
+      "BatchDecisionRuntime"
+    ],
+    "functions": [
+      "_load_pipeline_v2_config",
+      "_resolve_primary_pipeline",
+      "_decision_task_timeout_sec",
+      "_write_runtime_heartbeat",
+      "_normalize_hybrid_weights_for_decision",
+      "_unavailable_llm_providers",
+      "_annotate_llm_degradation",
+      "_process_symbol_decision_with_timeout",
+      "decide_batch"
+    ]
+  },
+  "decision/decision_authority_gate.py": {
+    "size": 38020,
+    "classes": [
+      "DecisionAuthorityInput",
+      "DefensiveAuthorityDecision",
+      "ReleaseModeResolution",
+      "Phase11EvidenceBindingError",
+      "ReleaseStateStore",
+      "DecisionAuthorityGate"
+    ],
+    "functions": [
+      "_runtime_root",
+      "_utc_now",
+      "_stable_hash",
+      "build_runtime_candidate_identity",
+      "_read_json",
+      "_file_sha256",
+      "_valid_sha256",
+      "_resolve_explicit_relative",
+      "_verify_payload_content_hash",
+      "load_phase11_authoritative_bundle",
+      "_resolve_under",
+      "validate_phase11_activation",
+      "validate_phase12_activation",
+      "resolve_release_mode",
+      "_contract_freshness_reason",
+      "_source_freshness_reason",
+      "_provider_contract",
+      "_consensus",
+      "apply_defensive_authority"
+    ]
+  },
+  "decision/decision_quality_metrics.py": {
+    "size": 4417,
+    "classes": [],
+    "functions": [
+      "_normal_action",
+      "_normal_direction",
+      "_is_enter",
+      "_is_expected_enter",
+      "_is_exact_match",
+      "_trade_safe",
+      "_provider_summary",
+      "summarize_labeled_decisions"
+    ]
+  },
+  "decision/derivatives_context.py": {
+    "size": 5729,
+    "classes": [
+      "DerivativeObservation",
+      "DerivativesContext"
+    ],
+    "functions": [
+      "_stable_hash",
+      "_observations"
+    ]
+  },
+  "decision/derivatives_runtime.py": {
+    "size": 7276,
+    "classes": [],
+    "functions": [
+      "_read",
+      "_history",
+      "_asset",
+      "_last_closed_hour",
+      "build_runtime_derivatives_context",
+      "closed_mtf_snapshot"
+    ]
+  },
+  "decision/edge_event_recorder.py": {
+    "size": 2910,
+    "classes": [
+      "EdgeEventRecorder"
+    ],
+    "functions": [
+      "record_edge_event"
+    ]
+  },
+  "decision/edge_event_schema.py": {
+    "size": 3411,
+    "classes": [],
+    "functions": [
+      "_utc_now",
+      "build_edge_event"
+    ]
+  },
+  "decision/edge_gate.py": {
+    "size": 13707,
+    "classes": [
+      "EdgeDecision"
+    ],
+    "functions": [
+      "_selected_policy_path",
+      "load_selected_strategy_policy",
+      "_evaluate_selected_policy",
+      "_safe_float",
+      "_is_frozen",
+      "_freeze_reasons",
+      "diagnose_edge_stats",
+      "_evaluate_stats",
+      "evaluate_edge",
+      "evaluate_edge_gate",
+      "build_edge_report"
+    ]
+  },
+  "decision/edge_memory.py": {
+    "size": 37047,
+    "classes": [],
+    "functions": [
+      "_path_is_relative_to",
+      "_assert_test_write_allowed",
+      "_cache_open_setup",
+      "_consume_open_setup",
+      "_snapshot_pipeline_v2_flags",
+      "_now_iso",
+      "_safe_float",
+      "_read_edge_events",
+      "load_edge_events",
+      "normalize_edge_direction",
+      "extract_setup_direction",
+      "get_legacy_missing_metadata_setup_id",
+      "resolve_edge_memory_setup_id",
+      "normalize_edge_symbol",
+      "find_latest_open_event_for_symbol",
+      "_default_stats",
+      "_compute_profit_factor",
+      "_compute_max_drawdown_r",
+      "_resolve_close_event_r_multiple",
+      "_derive_status",
+      "_aggregate_close_events",
+      "_recover_close_events_from_open_context",
+      "_ensure_state_files",
+      "archive_edge_stats_snapshot",
+      "record_trade_open",
+      "_close_event_key",
+      "_append_close_event_once",
+      "record_trade_close",
+      "rebuild_edge_stats",
+      "load_edge_stats",
+      "get_setup_stats"
+    ]
+  },
+  "decision/enhancement_gates.py": {
+    "size": 6832,
+    "classes": [],
+    "functions": [
+      "apply_enhancement_gates"
+    ]
+  },
+  "decision/expert_context.py": {
+    "size": 2971,
+    "classes": [
+      "ExpertContext"
+    ],
+    "functions": [
+      "_json_safe",
+      "stable_snapshot_hash"
+    ]
+  },
+  "decision/fusion_backtest.py": {
+    "size": 2015,
+    "classes": [],
+    "functions": [
+      "_safe_float",
+      "_evaluate",
+      "compare_fusion_methods"
+    ]
+  },
+  "decision/gate_report.py": {
+    "size": 13122,
+    "classes": [],
+    "functions": [
+      "_now_iso",
+      "_json_safe",
+      "_get_mapping",
+      "_normalize_stage",
+      "_new_stage",
+      "_stage_map",
+      "record_stage",
+      "_decision_action",
+      "build_gate_report_from_decision",
+      "finalize_gate_report",
+      "compact_gate_fields",
+      "attach_compact_gate_fields",
+      "persist_gate_report"
+    ]
+  },
+  "decision/h11_orderflow_runtime.py": {
+    "size": 8687,
+    "classes": [],
+    "functions": [
+      "_symbol",
+      "_read_object",
+      "validate_h11_runtime_manifest",
+      "build_runtime_orderflow_context"
+    ]
+  },
+  "decision/h3_market_data.py": {
+    "size": 12135,
+    "classes": [],
+    "functions": [
+      "asset",
+      "sha256",
+      "_read_object",
+      "_utc",
+      "_normalized_exchange",
+      "validate_h3_market_data_manifest",
+      "seal_h3_market_data_manifest"
+    ]
+  },
+  "decision/h3_setup_cooldown.py": {
+    "size": 4242,
+    "classes": [],
+    "functions": [
+      "_asset",
+      "_epoch",
+      "_read",
+      "record_close",
+      "status"
+    ]
+  },
+  "decision/hard_safety_gate.py": {
+    "size": 12942,
+    "classes": [],
+    "functions": [
+      "_safe_float",
+      "_first_float",
+      "_as_bool",
+      "_normalize_fraction",
+      "_max_abs_metric",
+      "_gate_config",
+      "_metric_context",
+      "evaluate_hard_safety_gate"
+    ]
+  },
+  "decision/helpers.py": {
+    "size": 9887,
+    "classes": [],
+    "functions": [
+      "_init_regime_imports",
+      "_get_current_regime",
+      "_get_regime_adjustment",
+      "_load_rl_adjustments",
+      "_get_rl_factor",
+      "_safe_sigmoid",
+      "_load_global_sentiment",
+      "_apply_global_sentiment_adjustment"
+    ]
+  },
+  "decision/imports.py": {
+    "size": 14505,
+    "classes": [],
+    "functions": [
+      "_seed_windows_uname_cache",
+      "_fallback_classify_volatility"
+    ]
+  },
+  "decision/learning_probe.py": {
+    "size": 32396,
+    "classes": [
+      "LearningProbeConfig",
+      "LearningProbeAuthorization"
+    ],
+    "functions": [
+      "_is_isolated_test_context",
+      "_coerce_float",
+      "_coerce_int",
+      "_coerce_probe_leverage",
+      "_coerce_regime_overrides",
+      "_coerce_setup_list",
+      "_coerce_runtime_modes",
+      "_coerce_never_trade",
+      "load_probe_config",
+      "_safe_int",
+      "_safe_optional_float",
+      "authorize_learning_probe",
+      "_progress_path",
+      "_load_progress",
+      "_save_progress",
+      "record_closed_trade",
+      "rebuild_progress_from_edge_events",
+      "is_target_reached",
+      "is_setup_target_reached",
+      "probe_progress",
+      "_resolve_official_execution_mode",
+      "is_probe_active",
+      "_detect_paper_runtime",
+      "apply_to_policy",
+      "cap_leverage",
+      "cap_size_scale",
+      "macro_crisis_floor",
+      "should_suppress_dynamic_threshold"
+    ]
+  },
+  "decision/liquidation_magnet.py": {
+    "size": 7439,
+    "classes": [
+      "MagnetSignal",
+      "LiquidationMagnetAnalyzer"
+    ],
+    "functions": [
+      "_is_liquidation_magnet_permitted",
+      "analyze_liquidation_magnet"
+    ]
+  },
+  "decision/llm_bias.py": {
+    "size": 5558,
+    "classes": [],
+    "functions": [
+      "_clean_symbol",
+      "_coerce_float",
+      "_normalize_bias",
+      "_normalize_advisory_action",
+      "strip_execution_control_fields",
+      "build_neutral_llm_bias",
+      "normalize_llm_bias_payload"
+    ]
+  },
+  "decision/llm_contract.py": {
+    "size": 22757,
+    "classes": [
+      "LLMDecisionContract",
+      "LLMLimitedPositiveDecisionContract",
+      "LLMContractCandidateContext",
+      "LLMContractBatchResult"
+    ],
+    "functions": [
+      "_utc_now",
+      "_default_metrics_dir",
+      "contains_prompt_injection",
+      "response_sha256",
+      "parse_llm_contract_payload",
+      "parse_llm_contract_transport_payload",
+      "_classify_validation_error",
+      "validate_llm_contract_payload",
+      "_audit_status_for_reason",
+      "_build_audit_event",
+      "append_llm_contract_audit",
+      "evaluate_llm_contract_batch",
+      "build_shadow_provider_records"
+    ]
+  },
+  "decision/llm_defensive_effect_tracker.py": {
+    "size": 6604,
+    "classes": [
+      "LLMDefensiveEffectTracker"
+    ],
+    "functions": [
+      "_drawdown",
+      "_cvar95_loss"
+    ]
+  },
+  "decision/llm_defensive_rollback.py": {
+    "size": 10609,
+    "classes": [
+      "RollbackMetrics",
+      "RollbackEvaluation",
+      "LLMDefensiveRollbackMonitor"
+    ],
+    "functions": []
+  },
+  "decision/llm_manager.py": {
+    "size": 31636,
+    "classes": [
+      "HybridWeightsSnapshot"
+    ],
+    "functions": [
+      "_to_float",
+      "_load_default_stop_pct",
+      "_resolve_execution_protection",
+      "normalize_hybrid_weights",
+      "_sanitize_prompt_symbol",
+      "_sanitize_prompt_mapping",
+      "_record_llm_advisory_validation_failure",
+      "validate_llm_advisory_record",
+      "build_batch_prompt",
+      "load_runtime_knobs",
+      "is_llm_disable_error",
+      "classify_llm_batch_health",
+      "summarize_provider_status",
+      "_resolve_main_timeframe_for_mtf",
+      "prepare_ai_batch_inputs",
+      "derive_provider_flags",
+      "_extract_consensus_execution_payload",
+      "build_decision_output"
+    ]
+  },
+  "decision/llm_positive_authority.py": {
+    "size": 51715,
+    "classes": [
+      "PositiveAuthorityInput",
+      "PositiveAuthorityDecision",
+      "PositiveModeResolution",
+      "PositiveReleaseStateStore",
+      "PositiveAuthorityGate"
+    ],
+    "functions": [
+      "_runtime_root",
+      "_utc_now",
+      "_stable_hash",
+      "positive_config_hash",
+      "deterministic_treatment_assignment",
+      "validate_positive_config",
+      "validate_phase13_oos_gate",
+      "resolve_positive_mode",
+      "_contract_freshness_reason",
+      "_source_freshness_reason",
+      "_provider_contract",
+      "_positive_consensus",
+      "_gate_status",
+      "apply_positive_authority"
+    ]
+  },
+  "decision/llm_positive_effect_tracker.py": {
+    "size": 15700,
+    "classes": [
+      "LLMPositiveEffectTracker"
+    ],
+    "functions": [
+      "_append_outcome_durable",
+      "_drawdown",
+      "_cvar95_loss"
+    ]
+  },
+  "decision/llm_positive_forward_tracker.py": {
+    "size": 10428,
+    "classes": [
+      "LLMPositiveForwardTracker"
+    ],
+    "functions": [
+      "_parse_utc",
+      "_load",
+      "_directional_return"
+    ]
+  },
+  "decision/llm_positive_rollback.py": {
+    "size": 7001,
+    "classes": [
+      "PositiveRollbackMetrics",
+      "PositiveRollbackEvaluation",
+      "LLMPositiveRollbackMonitor"
+    ],
+    "functions": []
+  },
+  "decision/master_score_calibration.py": {
+    "size": 17888,
+    "classes": [
+      "TrainingSourceSummary"
+    ],
+    "functions": [
+      "_env_flag",
+      "_env_int",
+      "_env_float",
+      "_safe_float",
+      "_coerce_label",
+      "_has_confidence",
+      "_source_type",
+      "_iter_jsonl",
+      "_iter_csv",
+      "summarize_training_source",
+      "_ready_counts",
+      "_parse_timestamp_epoch",
+      "_source_age_days",
+      "_source_is_stale",
+      "_summary_status_payload",
+      "_ready",
+      "_candidate_sources",
+      "_choose_source",
+      "_best_source",
+      "_insufficient_reason",
+      "_iso_from_epoch",
+      "_write_status",
+      "_runtime_artifact_dir",
+      "maybe_recalibrate_master_score"
+    ]
+  },
+  "decision/ml_governance.py": {
+    "size": 53671,
+    "classes": [
+      "CanonicalModelType",
+      "EligibilityCheck",
+      "ModelWeightState",
+      "ModelGovernanceDecision",
+      "MLGovernanceSnapshot",
+      "GovernedPredictionEnvelope"
+    ],
+    "functions": [
+      "_jsonable",
+      "_stable_hash",
+      "compute_evidence_hash",
+      "_sha256_file",
+      "_safe_weight",
+      "_safe_int",
+      "_parse_timestamp",
+      "canonicalize_model_type",
+      "_canonicalize_requested_type",
+      "_authoritative_host_mode",
+      "_policy_blockers",
+      "_registry_records",
+      "_select_registry_record",
+      "_primary_artifact",
+      "_all_artifacts",
+      "_path_hash_collisions",
+      "_artifact_path",
+      "_validate_artifacts",
+      "_validate_evidence_identity",
+      "_evidence_check",
+      "_runtime_contract_checks",
+      "_minimum_sample_check",
+      "_runtime_adapter_check",
+      "_ensemble_check",
+      "_unknown_decision",
+      "resolve_ml_governance",
+      "neutralize_ml_prediction",
+      "authorize_shadow_prediction",
+      "_load_json",
+      "_load_registry_evidence",
+      "resolve_current_ml_governance"
+    ]
+  },
+  "decision/models.py": {
+    "size": 2285,
+    "classes": [
+      "DecisionInput"
+    ],
+    "functions": []
+  },
+  "decision/model_influence.py": {
+    "size": 16342,
+    "classes": [],
+    "functions": [
+      "_default_metrics_dir",
+      "_utc_now",
+      "_float_or_none",
+      "_text_or_none",
+      "_normalize_model_governance",
+      "_measure_ml_influence",
+      "build_model_influence_record",
+      "direct_llm_execution_violations",
+      "append_model_influence_record",
+      "append_decision_audit_influence"
+    ]
+  },
+  "decision/model_weight_policy.py": {
+    "size": 5026,
+    "classes": [],
+    "functions": [
+      "_safe_float",
+      "_nested_bool",
+      "_baseline_edge",
+      "_paper_shadow_sample_count",
+      "model_is_production_eligible",
+      "score_model_quality",
+      "apply_model_weight_policy"
+    ]
+  },
+  "decision/mtf_trend_gate.py": {
+    "size": 2401,
+    "classes": [
+      "MtfTrendGateResult"
+    ],
+    "functions": [
+      "_float",
+      "evaluate_mtf_trend_gate"
+    ]
+  },
+  "decision/no_trade_explainer.py": {
+    "size": 3508,
+    "classes": [],
+    "functions": [
+      "_as_mapping",
+      "_as_sequence",
+      "_add_reason",
+      "explain_no_trade"
+    ]
+  },
+  "decision/official_authority_stage.py": {
+    "size": 2343,
+    "classes": [],
+    "functions": [
+      "apply_official_defensive_authority_stage",
+      "apply_official_authority_stage"
+    ]
+  },
+  "decision/official_pipeline.py": {
+    "size": 49271,
+    "classes": [
+      "DecisionRuntimeContext",
+      "DecisionFunctionDeps"
+    ],
+    "functions": [
+      "_pipeline_v2_config",
+      "_llm_defensive_release_config",
+      "_llm_positive_release_config",
+      "_paper_trading_config",
+      "_forward_direction",
+      "_observe_positive_forward_shadow",
+      "_decision_runtime_mode",
+      "_decision_exchange_side_effects_possible",
+      "_normalize_pipeline_name",
+      "_resolve_primary_pipeline",
+      "_resolve_shadow_pipeline",
+      "_dual_write_flush_size",
+      "_flush_dual_write_events",
+      "_record_dual_write_event",
+      "_require_kwargs",
+      "_append_stage",
+      "_llm_stage_payload",
+      "_attach_pipeline_metadata",
+      "_strategy_from_setup_id",
+      "_resolve_audit_context",
+      "_resolve_audit_regime_details",
+      "process_symbol_decision",
+      "_emit_audit",
+      "process_symbol_decision_with_context"
+    ]
+  },
+  "decision/paper_rl_policy.py": {
+    "size": 1331,
+    "classes": [],
+    "functions": [
+      "resolve_paper_rl_weight_multiplier"
+    ]
+  },
+  "decision/parameter_change_audit.py": {
+    "size": 920,
+    "classes": [],
+    "functions": [
+      "append_parameter_change"
+    ]
+  },
+  "decision/parameter_registry.py": {
+    "size": 15659,
+    "classes": [],
+    "functions": [
+      "get_threshold_set",
+      "get_threshold_registry_version",
+      "_now_iso",
+      "_ensure_state_files",
+      "_deep_copy_defaults",
+      "_matches_numeric",
+      "_migrate_stochrsi_legacy_defaults",
+      "_normalized_family",
+      "_merge_with_defaults",
+      "load_registry",
+      "save_registry",
+      "get_params",
+      "_bounded_numeric_value",
+      "_apply_range_bounds",
+      "_parse_expert_family_from_setup",
+      "_already_calibrated_for_sample",
+      "apply_periodic_parameter_calibration"
+    ]
+  },
+  "decision/phase13_administrative_completion.py": {
+    "size": 12547,
+    "classes": [],
+    "functions": [
+      "_read_object",
+      "content_hash",
+      "preservation_manifest",
+      "_source_validation",
+      "build_completion",
+      "_markdown",
+      "_write_companions",
+      "write_completion",
+      "validate_completion_artifact"
+    ]
+  },
+  "decision/phase13_candidate_families.py": {
+    "size": 3417,
+    "classes": [
+      "UtcSessionRangeExpansionProfile"
+    ],
+    "functions": [
+      "logic_fingerprint",
+      "candidate_manifest"
+    ]
+  },
+  "decision/phase13_completion_readiness.py": {
+    "size": 7005,
+    "classes": [],
+    "functions": [
+      "evidence_content_hash",
+      "validate_evidence",
+      "_gate_rows",
+      "build_readiness"
+    ]
+  },
+  "decision/phase13_fresh_universe_monitor.py": {
+    "size": 6601,
+    "classes": [],
+    "functions": [
+      "parse_cutoff",
+      "latest_completed_cutoff",
+      "dated_root",
+      "_content_hash",
+      "write_evidence",
+      "protocol_payload"
+    ]
+  },
+  "decision/phase13_h10_historical.py": {
+    "size": 1147,
+    "classes": [
+      "H10Profile"
+    ],
+    "functions": [
+      "logic_fingerprint"
+    ]
+  },
+  "decision/phase13_h11_development.py": {
+    "size": 24910,
+    "classes": [
+      "H11Trade"
+    ],
+    "functions": [
+      "_manifest_payload_content",
+      "_calendar_month_count",
+      "validate_final_preregistration",
+      "validate_closed_5m_frame",
+      "_timestamp_iso",
+      "_audit_regime",
+      "replay_non_overlapping_trades",
+      "count_payload",
+      "_trade_pnl",
+      "_maximum_drawdown_pct",
+      "_scenario_metrics",
+      "_bootstrap_lower",
+      "_positive_group_share",
+      "evaluate_development"
+    ]
+  },
+  "decision/phase13_h11_lockbox.py": {
+    "size": 7415,
+    "classes": [],
+    "functions": [
+      "validate_development_authorization",
+      "build_lockbox_contract",
+      "evaluate_lockbox",
+      "lockbox_gate_route"
+    ]
+  },
+  "decision/phase13_h11_orderflow_absorption_research.py": {
+    "size": 12751,
+    "classes": [
+      "OrderflowAbsorptionResearchProfile"
+    ],
+    "functions": [
+      "logic_fingerprint",
+      "aggregate_closed_5m_to_15m",
+      "detect_candidates",
+      "candidate_frequency_summary"
+    ]
+  },
+  "decision/phase13_h11_preregistration.py": {
+    "size": 13315,
+    "classes": [],
+    "functions": [
+      "_hash_order",
+      "deterministic_development_partition",
+      "deterministic_lockbox_partition",
+      "sealed_lockbox_window",
+      "build_final_preregistration_payloads"
+    ]
+  },
+  "decision/phase13_h11_source_compatibility.py": {
+    "size": 5151,
+    "classes": [],
+    "functions": [
+      "_parse_cutoff",
+      "evaluate_h11_source_compatibility"
+    ]
+  },
+  "decision/phase13_h11_strategy_release.py": {
+    "size": 10110,
+    "classes": [],
+    "functions": [
+      "_zero_side_effects",
+      "validate_strategy_oos_authorization",
+      "build_strategy_oos_evidence",
+      "build_strategy_policy"
+    ]
+  },
+  "decision/phase13_h2_governance.py": {
+    "size": 21046,
+    "classes": [],
+    "functions": [
+      "utc_now",
+      "stable_hash",
+      "file_hash",
+      "_content_for_hash",
+      "_markdown",
+      "write_immutable_artifact",
+      "write_execution_record",
+      "load_artifact",
+      "require_passed",
+      "require_frozen_build",
+      "intent_manifest",
+      "build_manifest_payload",
+      "evidence_manifest_payload"
+    ]
+  },
+  "decision/phase13_h3_governance.py": {
+    "size": 8287,
+    "classes": [],
+    "functions": [
+      "file_hash",
+      "evidence_tree_hash",
+      "write_immutable_artifact",
+      "require_passed",
+      "deterministic_partition",
+      "exposure_registry",
+      "intent_payload",
+      "preregister"
+    ]
+  },
+  "decision/phase13_h4_governance.py": {
+    "size": 11612,
+    "classes": [],
+    "functions": [
+      "utc_now",
+      "_content_for_hash",
+      "_tree_or_absence_hash",
+      "legacy_state_binding",
+      "assert_legacy_state",
+      "write_immutable_artifact",
+      "protocol_payload",
+      "preregister_protocol",
+      "require_passed",
+      "deterministic_partition",
+      "intent_payload"
+    ]
+  },
+  "decision/phase13_h5_governance.py": {
+    "size": 13888,
+    "classes": [],
+    "functions": [
+      "utc_now",
+      "_content_for_hash",
+      "_tree_or_absence_hash",
+      "legacy_state_binding",
+      "assert_legacy_state",
+      "write_immutable_artifact",
+      "deterministic_partition",
+      "protocol_payload",
+      "preregister_protocol",
+      "require_stage"
+    ]
+  },
+  "decision/phase13_h7_candidate.py": {
+    "size": 1459,
+    "classes": [
+      "CrossSectionalMomentumProfile"
+    ],
+    "functions": [
+      "logic_fingerprint"
+    ]
+  },
+  "decision/phase13_h8_historical.py": {
+    "size": 1847,
+    "classes": [
+      "H8Profile"
+    ],
+    "functions": [
+      "logic_fingerprint"
+    ]
+  },
+  "decision/phase13_h9_historical.py": {
+    "size": 1543,
+    "classes": [
+      "H9Profile"
+    ],
+    "functions": [
+      "logic_fingerprint"
+    ]
+  },
+  "decision/phase13_historical_replay_governance.py": {
+    "size": 5309,
+    "classes": [],
+    "functions": [
+      "_content_hash",
+      "write_evidence",
+      "manifest_payload"
+    ]
+  },
+  "decision/phase13_historical_research_closure.py": {
+    "size": 24777,
+    "classes": [],
+    "functions": [
+      "_read_object",
+      "_content_hash",
+      "_verified_evidence",
+      "_verified_sources",
+      "_verified_command",
+      "_verify_smoke",
+      "_scenario_metrics",
+      "_validate_historical_replays",
+      "_hypothesis_results",
+      "_verify_runtime_safety",
+      "build_closure",
+      "write_closure"
+    ]
+  },
+  "decision/phase13_lockbox_registry.py": {
+    "size": 4936,
+    "classes": [],
+    "functions": [
+      "_content_hash",
+      "_asset_name",
+      "discover_dynamic_lockbox_assignments",
+      "assert_exclusive_assignment"
+    ]
+  },
+  "decision/phase13_metadata_normalization_v2.py": {
+    "size": 6978,
+    "classes": [],
+    "functions": [
+      "utc_now",
+      "_hash_payload",
+      "write_evidence",
+      "derive_aliases",
+      "canonical_asset",
+      "protocol_payload"
+    ]
+  },
+  "decision/phase13_metadata_normalization_v3.py": {
+    "size": 4485,
+    "classes": [],
+    "functions": [
+      "_hash_payload",
+      "write_evidence",
+      "protocol_payload"
+    ]
+  },
+  "decision/phase13_research_program.py": {
+    "size": 13713,
+    "classes": [],
+    "functions": [
+      "utc_now",
+      "_content_for_hash",
+      "_tree_or_absence_hash",
+      "legacy_state_binding",
+      "assert_legacy_state",
+      "write_immutable_artifact",
+      "protocol_payload",
+      "experiment_registry_payload",
+      "preregister_program",
+      "require_stage",
+      "deterministic_partition",
+      "alpha_for_attempt"
+    ]
+  },
+  "decision/phase15_fusion_policy.py": {
+    "size": 29401,
+    "classes": [],
+    "functions": [
+      "_runtime_root",
+      "_utc_now",
+      "_stable_hash",
+      "_normalize_runtime_mode",
+      "_finite_unit",
+      "_snapshot_dict",
+      "_concise_ml_snapshot",
+      "_ml_zero_authority",
+      "_enhancements",
+      "_collect_pre_llm_blocks",
+      "_provider_disagreement",
+      "_unique",
+      "_positive_disabled_payload",
+      "_default_rollback",
+      "apply_phase15_fusion_policy",
+      "phase15_execution_contract",
+      "enforce_phase15_runtime_cap"
+    ]
+  },
+  "decision/regime_manager.py": {
+    "size": 10544,
+    "classes": [],
+    "functions": [
+      "_is_v2_primary_enabled",
+      "_normalize_regime_key",
+      "_calibration_candidates",
+      "_get_calibrated_regime_adjustment",
+      "get_current_regime",
+      "resolve_regime_context",
+      "get_regime_adjustment",
+      "load_market_regime"
+    ]
+  },
+  "decision/regime_policy.py": {
+    "size": 6396,
+    "classes": [
+      "RegimePolicy"
+    ],
+    "functions": [
+      "normalize_regime_name",
+      "_default_subregime",
+      "get_regime_policy"
+    ]
+  },
+  "decision/risk_manager.py": {
+    "size": 3206,
+    "classes": [],
+    "functions": [
+      "check_portfolio_risk",
+      "adjust_for_correlation",
+      "validate_entry"
+    ]
+  },
+  "decision/risk_models.py": {
+    "size": 1029,
+    "classes": [],
+    "functions": [
+      "__getattr__"
+    ]
+  },
+  "decision/risk_model_service.py": {
+    "size": 1355,
+    "classes": [
+      "RiskModelService"
+    ],
+    "functions": []
+  },
+  "decision/rl_integration.py": {
+    "size": 23744,
+    "classes": [],
+    "functions": [
+      "_get_sb3_vec_env",
+      "_get_sb3_dummy_vec_env",
+      "_get_sb3_vec_normalize",
+      "_warn_rl_data_issue_once",
+      "_clear_rl_data_issue",
+      "_resolve_rl_cache_path",
+      "_prepare_rl_dataframe",
+      "_load_rl_dataframe",
+      "ai_quality_factor",
+      "load_rl_adjustments",
+      "get_rl_factor",
+      "rl_norm_symbol",
+      "touch_rl_cache",
+      "_trim_rl_dataframe",
+      "cleanup_rl_cache",
+      "_cleanup_rl_cache_locked",
+      "load_rl_agent",
+      "_load_rl_agent_inner",
+      "_reload_vecnormalize",
+      "rl_score_for_symbol"
+    ]
+  },
+  "decision/score_calculator.py": {
+    "size": 904,
+    "classes": [],
+    "functions": [
+      "__getattr__"
+    ]
+  },
+  "decision/score_calculator_service.py": {
+    "size": 2373,
+    "classes": [
+      "ScoreCalculatorService"
+    ],
+    "functions": []
+  },
+  "decision/score_weights.py": {
+    "size": 1346,
+    "classes": [],
+    "functions": [
+      "_coerce_weight",
+      "normalize_decision_weights",
+      "resolve_decision_weights"
+    ]
+  },
+  "decision/sent_score.py": {
+    "size": 4924,
+    "classes": [],
+    "functions": [
+      "sent_score",
+      "load_global_sentiment",
+      "apply_global_sentiment_adjustment"
+    ]
+  },
+  "decision/setup_disable_policy.py": {
+    "size": 3550,
+    "classes": [],
+    "functions": [
+      "_looks_like_setup_contract",
+      "_metadata_quarantine_required",
+      "_f",
+      "evaluate_setup_policy"
+    ]
+  },
+  "decision/setup_edge_stats.py": {
+    "size": 3403,
+    "classes": [],
+    "functions": [
+      "_f",
+      "_median",
+      "build_setup_edge_stats"
+    ]
+  },
+  "decision/setup_expectancy.py": {
+    "size": 2549,
+    "classes": [
+      "SetupExpectancyDecision"
+    ],
+    "functions": [
+      "_float",
+      "evaluate_setup_expectancy_gate"
+    ]
+  },
+  "decision/setup_registry.py": {
+    "size": 2811,
+    "classes": [],
+    "functions": [
+      "_normalize_token",
+      "generate_setup_id",
+      "is_canonical_setup_id"
+    ]
+  },
+  "decision/shock_policy.py": {
+    "size": 3830,
+    "classes": [
+      "ShockPolicyDecision"
+    ],
+    "functions": [
+      "resolve_shock_action"
+    ]
+  },
+  "decision/shock_probe.py": {
+    "size": 8353,
+    "classes": [],
+    "functions": [
+      "_load_config_dict",
+      "get_shock_probe_config",
+      "is_shock_probe_setup",
+      "shock_probe_size_scale",
+      "_reason_prefix",
+      "_parse_reason_value",
+      "_shock_reasons",
+      "shock_probe_precheck",
+      "_float_from_sources",
+      "build_shock_probe_signal"
+    ]
+  },
+  "decision/social_shock_detector.py": {
+    "size": 6571,
+    "classes": [
+      "ShockSignal",
+      "SocialShockDetector"
+    ],
+    "functions": [
+      "_check_negation",
+      "check_social_shocks"
+    ]
+  },
+  "decision/state.py": {
+    "size": 2286,
+    "classes": [
+      "DecisionState"
+    ],
+    "functions": [
+      "get_decision_state",
+      "reset_decision_state"
+    ]
+  },
+  "decision/static_compat.py": {
+    "size": 1567,
+    "classes": [],
+    "functions": [
+      "install_static_compat",
+      "resolve_static_attr"
+    ]
+  },
+  "decision/stochrsi_opportunity.py": {
+    "size": 11498,
+    "classes": [
+      "StochRsiOpportunityResult",
+      "_Profile"
+    ],
+    "functions": [
+      "_f",
+      "_blocked",
+      "_param_float",
+      "_profile",
+      "_candidate_side",
+      "_watch_side",
+      "evaluate_stochrsi_opportunity"
+    ]
+  },
+  "decision/strategy_release.py": {
+    "size": 11594,
+    "classes": [
+      "StrategyReleaseResolution"
+    ],
+    "functions": [
+      "_expected_setup_ids",
+      "validate_strategy_release_config",
+      "resolve_strategy_release"
+    ]
+  },
+  "decision/strategy_router.py": {
+    "size": 20346,
+    "classes": [],
+    "functions": [
+      "_set_router_debug",
+      "_resolve_expert_candidates",
+      "_f",
+      "_passes_router_quality",
+      "_passes_regime_blocks",
+      "_stochrsi_strategy_enabled",
+      "_mtf_gate_required",
+      "route_to_expert"
+    ]
+  },
+  "decision/symbol_selector.py": {
+    "size": 10115,
+    "classes": [],
+    "functions": [
+      "_load_config",
+      "_symbol_filters_cfg",
+      "get_max_concurrent_positions",
+      "get_tier3_discovery_pool",
+      "_symbol_passes_filters",
+      "filter_symbol_candidates",
+      "_tier_edge_summary",
+      "_legacy_total_and_status",
+      "get_active_v2_symbols"
+    ]
+  },
+  "decision/tech_score.py": {
+    "size": 24429,
+    "classes": [],
+    "functions": [
+      "_coerce_float",
+      "_llm_direction_override_disabled",
+      "safe_sigmoid",
+      "load_global_sentiment",
+      "horizon_multiplier",
+      "is_horizon_allowed",
+      "apply_llm_direction_override",
+      "apply_global_sentiment_adjustment",
+      "compress_high_confidence",
+      "_normalize_regime_name",
+      "_macd_hist_sign_strength",
+      "_build_ema_fallback_score",
+      "tech_score",
+      "_get_regime_rsi_thresholds",
+      "enhanced_tech_score",
+      "base_decision_from_ema"
+    ]
+  },
+  "decision/v2_operational_monitor.py": {
+    "size": 12204,
+    "classes": [
+      "V2MonitorThresholds"
+    ],
+    "functions": [
+      "_parse_ts",
+      "_event_ts",
+      "_event_regime",
+      "_setup_id_is_real_expert",
+      "_has_expert_signal",
+      "_action_is_no_trade",
+      "_is_decision_event",
+      "_core_data_ts",
+      "_edge_all_blocked_or_frozen",
+      "_edge_diagnostics",
+      "evaluate_v2_operational_health",
+      "load_v2_monitor_inputs",
+      "_read_jsonl_tail",
+      "evaluate_current_v2_operational_health"
+    ]
+  },
+  "decision/variant_profiles.py": {
+    "size": 4203,
+    "classes": [
+      "DecisionVariantConfig"
+    ],
+    "functions": [
+      "_to_float_dict",
+      "_normalize_variant",
+      "load_variant_profiles",
+      "resolve_variant_config"
+    ]
+  },
+  "decision/_risk_models_static.py": {
+    "size": 86705,
+    "classes": [
+      "Decision",
+      "SymbolDecisionState"
+    ],
+    "functions": [
+      "ensure_direction_mutation_chain",
+      "initialize_direction_tracking",
+      "set_effective_direction",
+      "store_direction_score_snapshots",
+      "record_base_decision_change",
+      "load_risk_models",
+      "_load_risk_models_inner",
+      "_load_json_file",
+      "_calibration_max_source_age_days",
+      "_parse_calibration_timestamp",
+      "_calibration_status_chosen_source",
+      "_calibration_source_last_timestamp",
+      "_calibration_freshness",
+      "_coerce_schema_float",
+      "_validate_calibration_segment_payload",
+      "_validate_calibration_payload",
+      "_validate_logistic_weights_payload",
+      "_validate_risk_schedule_payload",
+      "_load_validated_json_file",
+      "_get_pipeline_v2_config",
+      "_get_pipeline_v2_flag",
+      "_paper_or_sandbox_runtime",
+      "_allow_edge_cold_start",
+      "_strict_edge_evidence",
+      "_get_edge_cold_start_size_scale",
+      "_edge_size_scale_leverage_cap_enabled",
+      "_is_shock_probe_state",
+      "_apply_shock_probe_caps",
+      "_is_edge_cold_start_reason",
+      "_record_adjustment_delta",
+      "_get_policy_min_confidence",
+      "_get_policy_max_leverage",
+      "_apply_regime_policy_leverage_cap",
+      "_has_router_owned_expert",
+      "_infer_setup_components",
+      "_resolve_setup_id",
+      "_resolve_setup_id_source",
+      "_resolve_decision_source",
+      "_build_edge_context",
+      "_apply_learning_probe_caps",
+      "_apply_v2_final_veto",
+      "_apply_edge_size_scale",
+      "_load_logistic_weights",
+      "get_calibration_params",
+      "get_logistic_weights",
+      "get_risk_schedule",
+      "lev_from_master",
+      "_safe_float",
+      "safe_min_compress",
+      "finalize_symbol_decision",
+      "finalize_symbol_decision_v2"
+    ]
+  },
+  "decision/_score_calculator_static.py": {
+    "size": 155105,
+    "classes": [],
+    "functions": [
+      "_ml_shadow_envelope",
+      "_runtime_metrics_dir",
+      "_is_llm_advisory_only",
+      "_record_llm_governance",
+      "_shadow_float",
+      "_build_tech_vote_shadow_record",
+      "_log_tech_vote_shadow",
+      "_resolve_regime_info",
+      "load_decision_weights",
+      "_normalize_decision_weights",
+      "_load_decision_weights_inner",
+      "get_decision_weights",
+      "is_expert_score_mode",
+      "is_rl_in_ai",
+      "_load_config_dict",
+      "_get_pipeline_v2_config",
+      "_pipeline_v2_enabled",
+      "force_pipeline_v2_mode",
+      "_get_pipeline_v2_flag",
+      "_pipeline_v2_strict_expert_only",
+      "_record_adjustment_delta",
+      "_is_pipeline_v2_expert_state",
+      "_get_item_ohlcv_frame",
+      "compute_ai_composite",
+      "build_calibrated_fusion_shadow",
+      "_initial_direction_source",
+      "_build_direction_score_snapshot",
+      "_apply_direction_audit_fields",
+      "_build_skip_signal_result",
+      "_safe_pipeline_v2_confidence",
+      "_select_pipeline_v2_expert_signal",
+      "_build_v2_llm_technical_fallback_signal",
+      "compute_symbol_signal",
+      "_apply_h_group",
+      "_apply_k_group",
+      "_apply_i_group",
+      "_apply_l_group",
+      "_apply_m_group",
+      "_combine_group_adjustments",
+      "_load_group_roots",
+      "_extract_group_series",
+      "_record_v2_shadow_research_groups",
+      "_apply_grouped_signal_adjustments",
+      "_apply_meta_labeling",
+      "apply_v2_guards",
+      "apply_symbol_postprocess",
+      "to_json_safe",
+      "persist_last_decisions",
+      "log_decision_summary"
+    ]
+  },
+  "decision/_static_facade.py": {
+    "size": 1506,
+    "classes": [],
+    "functions": [
+      "expose_static_module"
+    ]
+  },
+  "core/engine/analysis.py": {
+    "size": 37799,
+    "classes": [
+      "EngineAnalysisService"
+    ],
+    "functions": [
+      "record_regime_refresh_latency",
+      "get_regime_refresh_latency_stats",
+      "evaluate_regime_refresh_latency_health",
+      "_performance_float",
+      "_performance_bool",
+      "_normalize_optimizer_symbol",
+      "_optimizer_candidate_bool",
+      "_optimizer_candidate_int",
+      "_optimizer_force_recent_missed_enabled",
+      "_optimizer_force_recent_final_enabled",
+      "_recent_shadow_missed_enter_symbols",
+      "_recent_shadow_final_enter_symbols",
+      "_candidate_block_reason",
+      "_load_hard_safety_gate_config",
+      "assign_llm_candidate_routes",
+      "build_llm_candidate_summary",
+      "_llm_runtime_cost_report_path",
+      "apply_llm_candidate_optimizer_selection",
+      "persist_llm_candidate_summary",
+      "persist_model_influence_from_batch_items",
+      "persist_llm_candidate_optimizer_shadow",
+      "persist_llm_cost_shadow_summary",
+      "persist_llm_batch_optimizer_summary",
+      "persist_llm_runtime_cost_report",
+      "_read_metrics_json",
+      "notify_llm_cost_gate_status"
+    ]
+  },
+  "core/engine/analysis_batch.py": {
+    "size": 35779,
+    "classes": [
+      "EngineAnalysisBatchService"
+    ],
+    "functions": [
+      "_looks_like_multi_timeframe_payload",
+      "_extract_runtime_analysis_payload",
+      "_normalize_route_symbol",
+      "_utc_iso_from_epoch",
+      "_reason_code"
+    ]
+  },
+  "core/engine/analysis_compat.py": {
+    "size": 2889,
+    "classes": [
+      "EngineCompatAnalysisService"
+    ],
+    "functions": []
+  },
+  "core/engine/analysis_entry.py": {
+    "size": 16797,
+    "classes": [
+      "EngineEntryExecutionService"
+    ],
+    "functions": []
+  },
+  "core/engine/analysis_execution.py": {
+    "size": 91409,
+    "classes": [
+      "EngineAnalysisExecutionService"
+    ],
+    "functions": []
+  },
+  "core/engine/analysis_market.py": {
+    "size": 16454,
+    "classes": [
+      "EngineMarketDataService"
+    ],
+    "functions": [
+      "analysis_frame_to_ohlcv_rows"
+    ]
+  },
+  "core/engine/analysis_pipeline.py": {
+    "size": 5204,
+    "classes": [
+      "EngineAnalysisPipelineService"
+    ],
+    "functions": []
+  },
+  "core/engine/analysis_support.py": {
+    "size": 3063,
+    "classes": [],
+    "functions": [
+      "_pick_column_name",
+      "_normalize_timestamp_ms",
+      "analysis_frame_to_ohlcv_rows"
+    ]
+  },
+  "core/engine/bot.py": {
+    "size": 23772,
+    "classes": [
+      "BotEngine"
+    ],
+    "functions": [
+      "_state_manager_module",
+      "_analysis_frame_to_ohlcv_rows",
+      "create_engine"
+    ]
+  },
+  "core/engine/dashboard.py": {
+    "size": 18296,
+    "classes": [
+      "EngineDashboardService"
+    ],
+    "functions": []
+  },
+  "core/engine/execution.py": {
+    "size": 31726,
+    "classes": [
+      "EngineExecutionService"
+    ],
+    "functions": []
+  },
+  "core/engine/lifecycle.py": {
+    "size": 2484,
+    "classes": [
+      "EngineLifecycleService"
+    ],
+    "functions": []
+  },
+  "core/engine/loop_visibility.py": {
+    "size": 844,
+    "classes": [],
+    "functions": [
+      "record_engine_recoverable_error"
+    ]
+  },
+  "core/engine/sideways_grid.py": {
+    "size": 3999,
+    "classes": [],
+    "functions": [
+      "_normalize_regime",
+      "is_grid_regime_name",
+      "_dict_values",
+      "_object_values",
+      "_candidate_values",
+      "is_grid_candidate",
+      "execute_sideways_grid_if_applicable"
+    ]
+  },
+  "core/engine/stochrsi_parallel.py": {
+    "size": 42250,
+    "classes": [
+      "StochRsiParallelConfig",
+      "StochRsiCacheEntry",
+      "StochRsiParallelService"
+    ],
+    "functions": [
+      "_utc_now",
+      "_bool_env",
+      "_bool_value",
+      "_int_value",
+      "_float_value",
+      "timeframe_to_ms",
+      "_safe_float"
+    ]
+  },
+  "core/engine/symbols.py": {
+    "size": 21827,
+    "classes": [
+      "EngineSymbolService"
+    ],
+    "functions": [
+      "normalize_symbol",
+      "normalize_symbol_list"
+    ]
+  },
+  "core/engine/telemetry.py": {
+    "size": 2461,
+    "classes": [
+      "EngineTelemetryService"
+    ],
+    "functions": []
+  },
+  "analyzer.py": {
+    "size": 40231,
+    "classes": [],
+    "functions": [
+      "_timeframe_seconds",
+      "_env_flag",
+      "_get_binance_async_lock",
+      "_get_binance_async_client",
+      "_set_binance_async_client",
+      "_close_binance_async_exchange",
+      "normalize_symbol_for_binance_fallback",
+      "binance_supports_symbol",
+      "get_binance_sync",
+      "get_binance_async",
+      "close_binance_async_client",
+      "_convert_symbol_for_binance",
+      "_resolve_symbol",
+      "_ensure_symbol_exists",
+      "fetch_and_analyze_data",
+      "analyze_data_with_zscore",
+      "get_multi_timeframe_analysis",
+      "_maybe_await",
+      "calc_vwap",
+      "_compute_indicators_from_df",
+      "_fetch_ohlcv_paginated",
+      "fetch_and_analyze_data_async",
+      "get_multi_timeframe_analysis_async",
+      "check_bbands_squeeze",
+      "check_smart_take_profit"
+    ]
+  },
+  "meta_strategy_selector.py": {
+    "size": 11403,
+    "classes": [],
+    "functions": [
+      "_pipeline_v2_enabled",
+      "calculate_momentum",
+      "calculate_volatility",
+      "detect_range_breakout",
+      "select_strategy",
+      "get_strategy_multipliers"
+    ]
+  },
+  "chatgpt_decision_layer.py": {
+    "size": 10859,
+    "classes": [
+      "DecisionLayerError"
+    ],
+    "functions": [
+      "_advisory_only_result",
+      "_get_client",
+      "get_client",
+      "_apply_local_rules",
+      "verify_and_revise",
+      "quick_filter",
+      "reset_client",
+      "get_decision"
+    ]
+  }
+}

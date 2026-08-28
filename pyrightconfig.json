@@ -1,0 +1,34 @@
+{
+  "include": [
+    "runtime/runtime_entry_governor.py",
+    "runtime/startup_services.py",
+    "runtime/cpu_worker.py",
+    "risk/config.py",
+    "risk/margin_snapshot_cache.py",
+    "decision/llm_bias.py",
+    "decision/score_calculator_service.py",
+    "decision/risk_model_service.py",
+    "core/order_execution_metrics.py",
+    "core/ops_alerts.py",
+    "core/execution_contracts.py",
+    "core/market_notional.py",
+    "execution/decision_audit.py"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    ".venv",
+    "venv",
+    "backups",
+    "comparisons",
+    "data",
+    "frontend/dist",
+    "frontend/node_modules",
+    "logs",
+    "reports",
+    "scratch"
+  ],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "strict",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none"
+}

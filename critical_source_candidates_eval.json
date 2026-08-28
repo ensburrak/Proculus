@@ -1,0 +1,392 @@
+{
+  "project_root": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot",
+  "targets": {
+    "core/bot_engine.py": {
+      "best_source": {
+        "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\core\\bot_engine.py",
+        "exists": true,
+        "size": 3144,
+        "lines": 100,
+        "sha1": "097627bbeee0",
+        "compile_ok": true,
+        "decompiled_flag": false,
+        "suspicious_hits": 0,
+        "score": 159.119
+      },
+      "candidates": [
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\core\\bot_engine.py",
+          "exists": true,
+          "size": 3144,
+          "lines": 100,
+          "sha1": "097627bbeee0",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 159.119
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\core\\bot_engine.py.corrupted_bak",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_pylingual_apply\\core\\bot_engine.py",
+          "exists": true,
+          "size": 3144,
+          "lines": 100,
+          "sha1": "097627bbeee0",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 159.119
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_best_effort\\core\\bot_engine.py",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        },
+        {
+          "source_path": "C:\\Users\\eness\\.gemini\\antigravity\\code_tracker\\active\\no_repo\\51db78b07c023d0662aaf3aa97387b4b_bot_engine.py",
+          "exists": true,
+          "size": 3252,
+          "lines": 100,
+          "sha1": "d4cd23ae621b",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 59.146
+        }
+      ]
+    },
+    "runtime/main_entry.py": {
+      "best_source": {
+        "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\runtime\\main_entry.py",
+        "exists": true,
+        "size": 1891,
+        "lines": 62,
+        "sha1": "6decc96570cb",
+        "compile_ok": true,
+        "decompiled_flag": false,
+        "suspicious_hits": 0,
+        "score": 155.639
+      },
+      "candidates": [
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\runtime\\main_entry.py",
+          "exists": true,
+          "size": 1891,
+          "lines": 62,
+          "sha1": "6decc96570cb",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 155.639
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\runtime\\main_entry.py.corrupted_bak",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_pylingual_apply\\runtime\\main_entry.py",
+          "exists": true,
+          "size": 1891,
+          "lines": 62,
+          "sha1": "6decc96570cb",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 155.639
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_best_effort\\runtime\\main_entry.py",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        },
+        {
+          "source_path": "C:\\Users\\eness\\.gemini\\antigravity\\code_tracker\\active\\no_repo\\76078deafb6a9d9e58bd82998f286c91_main_entry.py",
+          "exists": true,
+          "size": 12317,
+          "lines": 132,
+          "sha1": "ee6035457ee6",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 64.079
+        }
+      ]
+    },
+    "runtime/startup_orchestrator.py": {
+      "best_source": {
+        "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\runtime\\startup_orchestrator.py",
+        "exists": true,
+        "size": 1376,
+        "lines": 46,
+        "sha1": "45f71e321460",
+        "compile_ok": true,
+        "decompiled_flag": false,
+        "suspicious_hits": 0,
+        "score": 154.177
+      },
+      "candidates": [
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\runtime\\startup_orchestrator.py",
+          "exists": true,
+          "size": 1376,
+          "lines": 46,
+          "sha1": "45f71e321460",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 154.177
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\runtime\\startup_orchestrator.py.corrupted_bak",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_pylingual_apply\\runtime\\startup_orchestrator.py",
+          "exists": true,
+          "size": 1376,
+          "lines": 46,
+          "sha1": "45f71e321460",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 154.177
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_best_effort\\runtime\\startup_orchestrator.py",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        },
+        {
+          "source_path": "C:\\Users\\eness\\.gemini\\antigravity\\code_tracker\\active\\no_repo\\83ebfa2f9ee9e7840346cee271676b6e_startup_orchestrator.py",
+          "exists": true,
+          "size": 1497,
+          "lines": 48,
+          "sha1": "d925d167b07e",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 54.374
+        }
+      ]
+    },
+    "risk/manager.py": {
+      "best_source": {
+        "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\risk\\manager.py",
+        "exists": true,
+        "size": 2609,
+        "lines": 72,
+        "sha1": "d9dbb2381593",
+        "compile_ok": true,
+        "decompiled_flag": false,
+        "suspicious_hits": 0,
+        "score": 156.652
+      },
+      "candidates": [
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\risk\\manager.py",
+          "exists": true,
+          "size": 2609,
+          "lines": 72,
+          "sha1": "d9dbb2381593",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 156.652
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\risk\\manager.py.corrupted_bak",
+          "exists": true,
+          "size": 22185,
+          "lines": 1,
+          "sha1": "e498bc47f9c9",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 55.63
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_pylingual_apply\\risk\\manager.py",
+          "exists": true,
+          "size": 2609,
+          "lines": 72,
+          "sha1": "d9dbb2381593",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 156.652
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_best_effort\\risk\\manager.py",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        }
+      ]
+    },
+    "api/routes/trades.py": {
+      "best_source": {
+        "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\api\\routes\\trades.py",
+        "exists": true,
+        "size": 9456,
+        "lines": 309,
+        "sha1": "bac7eec3658d",
+        "compile_ok": true,
+        "decompiled_flag": false,
+        "suspicious_hits": 0,
+        "score": 178.114
+      },
+      "candidates": [
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\api\\routes\\trades.py",
+          "exists": true,
+          "size": 9456,
+          "lines": 309,
+          "sha1": "bac7eec3658d",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 178.114
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\api\\routes\\trades.py.corrupted_bak",
+          "exists": true,
+          "size": 7125,
+          "lines": 1,
+          "sha1": "6617623a74e0",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 51.865
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_pylingual_apply\\api\\routes\\trades.py",
+          "exists": true,
+          "size": 1004,
+          "lines": 28,
+          "sha1": "22ba22fd3c69",
+          "compile_ok": true,
+          "decompiled_flag": true,
+          "suspicious_hits": 0,
+          "score": 102.584
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_best_effort\\api\\routes\\trades.py",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        }
+      ]
+    },
+    "paper_trading/paper_exchange.py": {
+      "best_source": {
+        "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\paper_trading\\paper_exchange.py",
+        "exists": true,
+        "size": 3538,
+        "lines": 93,
+        "sha1": "5b0c667b6df9",
+        "compile_ok": true,
+        "decompiled_flag": false,
+        "suspicious_hits": 0,
+        "score": 158.635
+      },
+      "candidates": [
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\paper_trading\\paper_exchange.py",
+          "exists": true,
+          "size": 3538,
+          "lines": 93,
+          "sha1": "5b0c667b6df9",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 158.635
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\paper_trading\\paper_exchange.py.corrupted_bak",
+          "exists": true,
+          "size": 20569,
+          "lines": 1,
+          "sha1": "8e5fd249a35d",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 55.226
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_pylingual_apply\\paper_trading\\paper_exchange.py",
+          "exists": true,
+          "size": 3538,
+          "lines": 93,
+          "sha1": "5b0c667b6df9",
+          "compile_ok": true,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": 158.635
+        },
+        {
+          "source_path": "C:\\Users\\eness\\Downloads\\AutoTraderBot\\AutoTraderBot\\backups\\pre_feb19_best_effort\\paper_trading\\paper_exchange.py",
+          "exists": false,
+          "size": 0,
+          "lines": 0,
+          "sha1": "",
+          "compile_ok": false,
+          "decompiled_flag": false,
+          "suspicious_hits": 0,
+          "score": -1000000000.0
+        }
+      ]
+    }
+  }
+}

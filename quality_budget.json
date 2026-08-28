@@ -1,0 +1,33 @@
+{
+  "print_policy": {
+    "max_tracked_violations": 0,
+    "max_new_violations": 0
+  },
+  "log_text_policy": {
+    "max_tracked_violations": 0,
+    "max_new_violations": 0
+  },
+  "broad_exception_policy": {
+    "max_new_violations": 0,
+    "weekly_target_drop_min": 1
+  },
+  "broad_exception_metrics": {
+    "report_required": true,
+    "severity_weights": {
+      "CRITICAL": 5,
+      "HIGH": 3,
+      "MEDIUM": 2,
+      "LOW": 1
+    }
+  },
+  "coverage": {
+    "critical_modules_min_percent": 75.0,
+    "full_suite_min_percent": 70.0
+  },
+  "release_readiness": {
+    "require_import_smoke": true,
+    "require_stabilization_sprint_active": true,
+    "require_healthcheck_smoke": true,
+    "require_backtest_sanity": true
+  }
+}

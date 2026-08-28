@@ -1,0 +1,54 @@
+{
+  "active_positions": [
+    {
+      "symbol": "ARB/USDT:USDT",
+      "symbol_clean": "ARB/USDT",
+      "side": "short",
+      "contracts": 48.1,
+      "entryPrice": 0.10386,
+      "leverage": 1.0,
+      "marginMode": "isolated",
+      "takeProfitPrice": null,
+      "stopLossPrice": null
+    },
+    {
+      "symbol": "CRV/USDT:USDT",
+      "symbol_clean": "CRV/USDT",
+      "side": "short",
+      "contracts": 22.0,
+      "entryPrice": 0.225,
+      "leverage": 1.0,
+      "marginMode": "isolated",
+      "takeProfitPrice": null,
+      "stopLossPrice": null
+    },
+    {
+      "symbol": "BAND/USDT:USDT",
+      "symbol_clean": "BAND/USDT",
+      "side": "short",
+      "contracts": 23.0,
+      "entryPrice": 0.2136,
+      "leverage": 1.0,
+      "marginMode": "isolated",
+      "takeProfitPrice": null,
+      "stopLossPrice": null
+    },
+    {
+      "symbol": "AXS/USDT:USDT",
+      "symbol_clean": "AXS/USDT",
+      "side": "short",
+      "contracts": 4.0,
+      "entryPrice": 1.1348,
+      "leverage": 1.0,
+      "marginMode": "isolated",
+      "takeProfitPrice": null,
+      "stopLossPrice": null
+    }
+  ],
+  "open_orders_by_symbol": {
+    "ARB/USDT": [],
+    "CRV/USDT": [],
+    "BAND/USDT": [],
+    "AXS/USDT": []
+  }
+}

@@ -1,0 +1,352 @@
+services:
+  # ==========================================================================
+  # MAIN TRADING BOT
+  # ==========================================================================
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot-runtime
+    container_name: autotraderbot
+    restart: unless-stopped
+    environment:
+      OKX_API_KEY_FILE: /run/secrets/okx_api_key
+      OKX_API_SECRET_FILE: /run/secrets/okx_api_secret
+      OKX_API_PASSPHRASE_FILE: /run/secrets/okx_api_passphrase
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
+      BINANCE_API_KEY_FILE: /run/secrets/binance_api_key
+      BINANCE_API_SECRET_FILE: /run/secrets/binance_api_secret
+      ALLOW_DOTENV_FALLBACK: ${ALLOW_DOTENV_FALLBACK:-0}
+      APP_ENV_FILE: ${APP_ENV_FILE:-}
+      DOCKER_HEALTHCHECK_MODE: runtime
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/bot.db}
+      LOG_JSON: ${LOG_JSON:-1}
+      PROMETHEUS_BIND: 0.0.0.0
+      PROMETHEUS_PORT: ${PROMETHEUS_PORT:-9100}
+    secrets:
+      - okx_api_key
+      - okx_api_secret
+      - okx_api_passphrase
+      - openai_api_key
+      - deepseek_api_key
+      - binance_api_key
+      - binance_api_secret
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./metrics:/app/metrics
+      - ./models:/app/models
+      - ./runtime:/app/runtime
+    ports:
+      - "8501:8501"  # Streamlit dashboard
+    networks:
+      - tradingnet
+    healthcheck:
+      test: ["CMD", "python", "tools/docker_healthcheck.py"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # FASTAPI CONTROL/API SERVICE
+  # ==========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-runtime
+    container_name: autotraderbot_api
+    restart: unless-stopped
+    environment:
+      API_SECRET_KEY_FILE: /run/secrets/api_secret_key
+      ALLOW_DOTENV_FALLBACK: ${ALLOW_DOTENV_FALLBACK:-0}
+      APP_ENV_FILE: ${APP_ENV_FILE:-}
+      DOCKER_HEALTHCHECK_MODE: http
+      HEALTHCHECK_URL: http://127.0.0.1:8000/api/health
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/bot.db}
+    secrets:
+      - api_secret_key
+    ports:
+      - "8000:8000"
+    networks:
+      - tradingnet
+    healthcheck:
+      test: ["CMD", "python", "tools/docker_healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # HEALTH MONITOR (optional)
+  # ==========================================================================
+  health_monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot-runtime
+    container_name: health_monitor
+    restart: unless-stopped
+    command: ["python", "health_monitor.py"]
+    environment:
+      ALLOW_DOTENV_FALLBACK: ${ALLOW_DOTENV_FALLBACK:-0}
+      APP_ENV_FILE: ${APP_ENV_FILE:-}
+    volumes:
+      - ./metrics:/app/metrics
+      - ./logs:/app/logs
+    networks:
+      - tradingnet
+    depends_on:
+      - bot
+    profiles:
+      - with-monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # SPOT HEDGE SERVICE (optional)
+  # ==========================================================================
+  spot_hedge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot-runtime
+    container_name: spot_hedge
+    restart: unless-stopped
+    command: ["python", "spot_hedge.py"]
+    environment:
+      ALLOW_DOTENV_FALLBACK: ${ALLOW_DOTENV_FALLBACK:-0}
+      APP_ENV_FILE: ${APP_ENV_FILE:-}
+    volumes:
+      - ./metrics:/app/metrics
+    networks:
+      - tradingnet
+    profiles:
+      - with-hedge
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # DASHBOARD (optional - Streamlit)
+  # ==========================================================================
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot-runtime
+    container_name: dashboard
+    restart: unless-stopped
+    command: ["streamlit", "run", "dashboard_streamlit.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    environment:
+      ALLOW_DOTENV_FALLBACK: ${ALLOW_DOTENV_FALLBACK:-0}
+      APP_ENV_FILE: ${APP_ENV_FILE:-}
+    ports:
+      - "8502:8501"  # Different port if bot also exposes 8501
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./metrics:/app/metrics
+    networks:
+      - tradingnet
+    profiles:
+      - with-dashboard
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # POSTGRESQL (optional - migration target)
+  # ==========================================================================
+  postgres:
+    image: postgres:16
+    container_name: autotraderbot_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-autotraderbot}
+      POSTGRES_USER: ${POSTGRES_USER:-autotraderbot}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./sql/postgresql_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - tradingnet
+    profiles:
+      - with-postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # PROMETHEUS (optional - metrics collection)
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - tradingnet
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    profiles:
+      - with-monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # GRAFANA (optional - dashboards)
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+    secrets:
+      - grafana_admin_password
+    networks:
+      - tradingnet
+    depends_on:
+      - prometheus
+      - loki
+    profiles:
+      - with-monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # LOKI (optional - structured log storage)
+  # ==========================================================================
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    command:
+      - "-config.file=/etc/loki/config.yml"
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - tradingnet
+    profiles:
+      - with-monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ==========================================================================
+  # PROMTAIL (optional - log shipping)
+  # ==========================================================================
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    command:
+      - "-config.file=/etc/promtail/config.yml"
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./logs:/workspace/logs:ro
+      - promtail-data:/tmp/promtail
+    networks:
+      - tradingnet
+    depends_on:
+      - loki
+    profiles:
+      - with-monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ==========================================================================
+# NETWORKS
+# ==========================================================================
+networks:
+  tradingnet:
+    driver: bridge
+
+# ==========================================================================
+# VOLUMES
+# ==========================================================================
+volumes:
+  prometheus-data:
+  grafana-storage:
+  loki-data:
+  promtail-data:
+  postgres-data:
+
+secrets:
+  okx_api_key:
+    file: ${OKX_API_KEY_SECRET_FILE:-./secrets/okx_api_key.example}
+  okx_api_secret:
+    file: ${OKX_API_SECRET_FILE:-./secrets/okx_api_secret.example}
+  okx_api_passphrase:
+    file: ${OKX_API_PASSPHRASE_FILE:-./secrets/okx_api_passphrase.example}
+  openai_api_key:
+    file: ${OPENAI_API_KEY_SECRET_FILE:-./secrets/openai_api_key.example}
+  deepseek_api_key:
+    file: ${DEEPSEEK_API_KEY_SECRET_FILE:-./secrets/deepseek_api_key.example}
+  binance_api_key:
+    file: ${BINANCE_API_KEY_SECRET_FILE:-./secrets/binance_api_key.example}
+  binance_api_secret:
+    file: ${BINANCE_API_SECRET_FILE:-./secrets/binance_api_secret.example}
+  api_secret_key:
+    file: ${API_SECRET_KEY_SECRET_FILE:-./secrets/api_secret_key.example}
+  grafana_admin_password:
+    file: ${GRAFANA_ADMIN_PASSWORD_SECRET_FILE:-./secrets/grafana_admin_password.example}
+  postgres_password:
+    file: ${POSTGRES_PASSWORD_SECRET_FILE:-./secrets/postgres_password.example}

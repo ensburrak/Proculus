@@ -1,0 +1,26 @@
+target-version = "py312"
+line-length = 120
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".pytest_local_tmp",
+    ".venv",
+    "venv",
+    "backups",
+    "comparisons",
+    "data",
+    "bot/_command_handler_impl_parts",
+    "bot/_order_processing_impl_parts",
+    "_trade_quality_gate_impl_parts",
+    "decision/_score_calculator_impl_parts",
+    "decision/_risk_models_impl_parts",
+    "docs/archive",
+    "frontend",
+    "logs",
+    "metrics",
+    "reports",
+]
+
+[lint]
+select = ["E9", "F63", "F7", "F82"]

@@ -1,0 +1,48 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PRISMA • V9 Offline Araştırma</title><meta name="referrer" content="no-referrer">
+<style>:root{color-scheme:dark;--a:#c3afff;--edge:#ffffff24;--bg:#080a16;font:13px/1.65 "Segoe UI",system-ui;color:#f5f2ff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 75% 10%,#45305c48,transparent 40%),#080a16;min-height:100vh}main{max-width:1200px;padding:30px 24px 90px;margin:auto}h1{font-size:clamp(29px,4vw,52px);line-height:1.1;letter-spacing:-2px}h2{font-size:18px}p,small{color:#b1accb}a{color:var(--a)}.eyebrow{color:var(--a);font-size:10px;letter-spacing:3px}.headline{max-width:700px}.panels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:22px 0}.panel{min-width:0;border:1px solid var(--edge);border-radius:17px;padding:19px;background:linear-gradient(150deg,#1d1931,#111322)}.panel:focus-within{border-color:#c3afff8a}label{display:block;color:#b6b3ce;font-size:11px;margin:15px 0 6px}input,select{display:block;background:#090b17;border:1px solid var(--edge);padding:11px;border-radius:9px;color:#f7f4ff;width:100%;font:inherit;min-width:0}input[type=checkbox]{width:auto;display:inline}input[type=file]{font-size:11px}button{cursor:pointer;background:#c3afff;color:#151027;border:0;border-radius:9px;padding:11px 15px;font-weight:700}button.secondary{color:#f7f4ff;background:#c3afff17;border:1px solid #c3afff40}button:disabled{opacity:.4;cursor:not-allowed}.tag{display:inline-block;border:1px solid var(--edge);border-radius:50px;padding:5px 9px;color:var(--a);font-size:10px}.msg{padding:14px;border-radius:13px;border:1px solid #e9d59643;background:#e9b8850d;min-height:55px;color:#f5ddb5}.jobs{display:grid;gap:9px}.job{padding:13px;border:1px solid var(--edge);border-radius:11px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}.job small{overflow-wrap:anywhere;display:block}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}pre{max-height:430px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#070914;border:1px solid var(--edge);border-radius:13px;padding:18px;font-size:11px;color:#cde4e6}@media(max-width:900px){.panels{grid-template-columns:1fr}}@media(prefers-reduced-motion:no-preference){.panel{transition:transform .2s}.panel:hover{transform:translateY(-2px)}}</style></head><body><main>
+<div class="eyebrow">PROCULUS / PRISMA / OFFLINE ONLY</div><h1>Gerçek araştırma.<br><span style="color:var(--a)">Kanıtlanabilir sonuç.</span></h1>
+<p class="headline">Bu panel yalnızca bilgisayarındaki Proculus V9 gözlemcisiyle iletişim kurar. Gerçek borsa emirleri, hesap değişiklikleri veya üretim modeline geçiş işlemleri yapmaz. Tam V9 3D sitesi ayrı pakette bulunur.</p>
+<p><a href="/">← PRISMA 3D Stüdyoya dön</a> · <a href="/Proculus_Immersive_v9.html">Tam V9 görsel site (kuruluysa)</a></p>
+<div class="panels"><section class="panel">
+<div class="eyebrow">01 / YETKİ</div><h2>Yerel bağlantı</h2>
+<label for="token">Geçici yerel STUDIO_RESEARCH_TOKEN</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="32+ karakter, RAM içinde" />
+<button id="connect" class="secondary" style="margin-top:15px">Yerel servisi doğrula</button>
+<p id="authstate" aria-live="polite">Bağlanılmadı</p>
+</section><section class="panel">
+<div class="eyebrow">02 / VERİ</div><h2>OHLC yükle</h2>
+<label for="reason">Operatör gerekçesi</label><input id="reason" placeholder="Çevrimdışı backtest araştırması" minlength="12"/>
+<label for="csv">CSV · timestamp,open,high,low,close</label><input id="csv" type="file" accept=".csv,text/csv"/>
+<button id="upload" disabled style="margin-top:15px">Gerçek veri kümesini kaydet</button>
+<p id="dataset">Doğrulanmış veri kümesi yok</p>
+</section><section class="panel">
+<div class="eyebrow">03 / İŞ</div><h2>İş oluştur</h2>
+<label for="kind">Araştırma türü</label><select id="kind"><option value="backtest">EMA long/flat backtest</option><option value="training">Kronolojik OOS lojistik eğitim</option></select>
+<div class="actions"><label>Hızlı EMA<input id="fast" type="number" min="2" max="30" value="12"/></label><label>Yavaş EMA<input id="slow" type="number" min="4" max="100" value="30"/></label></div>
+<label><input id="confirm" type="checkbox"/> Yalnız offline araştırmayı onaylıyorum</label>
+<button id="create" disabled>Kalıcı kuyruğa ekle</button></section></div>
+<div class="msg" id="message" role="status">V9 yerel servisi doğrulamadan hiçbir işlem başlamaz.</div>
+<section class="panel" style="margin-top:16px"><div class="actions" style="justify-content:space-between"><h2>Kalıcı iş kuyruğu</h2><button id="refresh" class="secondary" disabled>Sunucudan yenile</button></div><div id="jobs" class="jobs"></div></section><section class="panel" style="margin-top:16px"><h2>SHA-256 doğrulanmış sunucu raporu</h2><pre id="result">Henüz sunucu raporu açılmadı.</pre></section>
+</main><script>
+(()=>{'use strict';let secret='',dataset='',connected=false;const el=id=>document.getElementById(id);
+const say=t=>el('message').textContent=String(t);
+const localhost=['127.0.0.1','localhost'].includes(location.hostname)&&location.protocol==='http:';
+async function api(path,method='GET',body=null,extra={}){
+if(!localhost)throw Error('Yalnız localhost erişimi geçerli');
+const h={'X-Research-Token':secret,...extra};if(body!==null)h['Content-Type']='application/json';
+const c=new AbortController(),timeout=setTimeout(()=>c.abort(),18000);
+try{const r=await fetch('/api/studio/research/'+path,{method,headers:h,cache:'no-store',credentials:'omit',signal:c.signal,...(body===null?{}:{body:JSON.stringify(body)})});
+const j=await r.json();if(!r.ok)throw Error('HTTP '+r.status+' '+JSON.stringify(j.error||j).slice(0,170));return j}
+finally{clearTimeout(timeout)}}
+function ops(){return {'X-Ops-Reason':el('reason').value.trim(),'X-Research-Confirm':'OFFLINE'}}
+async function refresh(){if(!connected)return;try{const j=await api('jobs');el('jobs').replaceChildren();
+for(const job of j.jobs||[]){const card=document.createElement('div');card.className='job';const info=document.createElement('span');const label=document.createElement('strong');label.textContent=job.kind+' · '+job.state;info.append(label);const small=document.createElement('small');small.textContent=job.id+' · '+job.created+' · '+String(job.result_sha||'');info.append(small);card.append(info);
+const actions=document.createElement('div');actions.className='actions';if(job.state==='completed'){const b=document.createElement('button');b.className='secondary';b.textContent='Kanıtı aç';b.onclick=async()=>{try{const v=await api('jobs/'+encodeURIComponent(job.id)+'/artifact');el('result').textContent=JSON.stringify(v,null,2)}catch(e){say(e.message)}};actions.append(b)}
+if(['queued','running'].includes(job.state)){const b=document.createElement('button');b.className='secondary';b.textContent='İptal et';b.onclick=async()=>{if(!confirm('Offline araştırma işini iptal et?'))return;try{await api('jobs/'+encodeURIComponent(job.id)+'/cancel','POST',{},ops());refresh()}catch(e){say(e.message)}};actions.append(b)}card.append(actions);el('jobs').append(card)}}
+catch(e){say(e.message)}}
+el('connect').onclick=async()=>{secret=el('token').value;el('token').value='';try{const c=await api('capabilities');if(!c.enabled||c.real_orders||c.mode!=='local_offline_only')throw Error('OFFLINE yetenek sözleşmesi bulunmadı');connected=true;el('upload').disabled=false;el('refresh').disabled=false;el('authstate').textContent='● Yerel offline erişim';say('Token RAM içerisinde. Hiçbir borsa anahtarı gönderme.');await refresh()}catch(e){secret='';connected=false;say(e.message)}};
+el('upload').onclick=async()=>{const f=el('csv').files?.[0];if(!connected||!f||f.size>3*1024*1024||!f.name.toLowerCase().endsWith('.csv')){say('En fazla 3 MB CSV gerekli');return}if(ops()['X-Ops-Reason'].length<12){say('12 karakterlik gerekçe gerekli');return}
+try{const d=await api('datasets','POST',{csv_text:await f.text()},ops());dataset=d.dataset_id;el('dataset').textContent='SHA256: '+d.sha256;el('create').disabled=false;say('Sunucu verisi doğrulandı: '+d.rows+' mum')}catch(e){dataset='';el('create').disabled=true;say(e.message)}};
+el('create').onclick=async()=>{if(!connected||!dataset||!el('confirm').checked||ops()['X-Ops-Reason'].length<12){say('Veri + gerekçe + offline onayı gerekli');return}const kind=el('kind').value,params=kind==='backtest'?{fast:+el('fast').value,slow:+el('slow').value}:{epochs:50};try{const key=crypto.randomUUID?crypto.randomUUID()+'-offline-v9':Date.now()+'-offline-v9';const j=await api('jobs','POST',{kind,dataset_id:dataset,params},{...ops(),'Idempotency-Key':key});say('Gerçek iş sıraya alındı: '+j.id);el('confirm').checked=false;await refresh()}catch(e){say(e.message)}};
+el('refresh').onclick=refresh;
+})();
+</script></body></html>

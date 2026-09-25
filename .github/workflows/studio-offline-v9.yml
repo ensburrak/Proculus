@@ -1,0 +1,34 @@
+name: V9 Studio Offline Acceptance
+on:
+  push:
+    paths:
+      - 'studio_control/**'
+      - 'api/routes/studio_research.py'
+      - 'web/paper_operator_v9.py'
+      - 'tests/**/test_studio_offline_v9.py'
+      - '.github/workflows/studio-offline-v9.yml'
+  pull_request:
+    paths:
+      - 'studio_control/**'
+      - 'api/routes/studio_research.py'
+      - 'web/paper_operator_v9.py'
+      - 'tests/**/test_studio_offline_v9.py'
+      - '.github/workflows/studio-offline-v9.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-offline-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STUDIO_RESEARCH_ENABLE: '0'
+      TESTING: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile offline source without importing trading stack
+        run: python -m py_compile studio_control/research_jobs.py
+      - name: Prove real computed jobs and security gates without exchange keys
+        run: python -m unittest discover -s tests -p test_studio_offline_v9.py -v

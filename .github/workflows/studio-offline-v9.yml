@@ -6,6 +6,7 @@ on:
       - 'api/routes/studio_research.py'
       - 'web/paper_operator_v9.py'
       - 'tests/**/test_studio_offline_v9.py'
+      - 'tests/test_studio_http_v9.py'
       - '.github/workflows/studio-offline-v9.yml'
   pull_request:
     paths:
@@ -32,3 +33,5 @@ jobs:
         run: python -m py_compile studio_control/research_jobs.py
       - name: Prove real computed jobs and security gates without exchange keys
         run: python -m unittest discover -s tests -p test_studio_offline_v9.py -v
+      - name: Localhost HTTP contract and auth regression (no exchange)
+        run: python -m unittest discover -s tests -p test_studio_http_v9.py -v

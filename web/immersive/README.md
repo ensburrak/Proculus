@@ -19,7 +19,7 @@ Ardından tarayıcıda **localhost:8080** aç.
 
 ## Genişletilmiş HTML ile farkı
 
-Ek olarak teslim edilen `Proculus_Immersive_v2.html`, daha büyük bir bağımsız çalışma stüdyosu ve çok sayıda simülasyon/kontrol içerir. Bu repo dizinindeki uygulama, mevcut depoya **güvenli, değişiklikten izole başlangıç entegrasyonudur**. İstenirse indirilen tam HTML burada `full.html` adıyla barındırılabilir. Tam HTML'nin simülasyon kontrolleri gerçek işlem motoruna bağlı değildir.
+Ek olarak teslim edilen `Proculus_Immersive_FINAL_2026.html`, daha büyük bir bağımsız çalışma stüdyosu ve çok sayıda simülasyon/kontrol içerir. Bu repo dizinindeki uygulama, mevcut depoya **güvenli, değişiklikten izole başlangıç entegrasyonudur**. İstenirse indirilen tam HTML burada `full.html` adıyla barındırılabilir. Tam HTML'nin simülasyon kontrolleri gerçek işlem motoruna bağlı değildir.
 
 ## Gerçek operasyonun sonraki aşaması
 

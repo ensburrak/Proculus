@@ -39,7 +39,7 @@ def serve(repo:Path,site:Path,port:int,secret:str):
             origin=self.headers.get('Origin','')
             if origin and origin not in origins:return False
             return self.headers.get('Sec-Fetch-Site')!='cross-site'
-        def path(self):
+        def route_path(self):
             parsed=urlsplit(self.path)
             if parsed.query or parsed.fragment:raise ValueError('Query strings denied')
             return unquote(parsed.path)
@@ -66,7 +66,7 @@ def serve(repo:Path,site:Path,port:int,secret:str):
             self.end_headers();self.wfile.write(raw)
         def do_GET(self):
             if not self.guard():return self.respond({'error':'Host/origin denied'},403)
-            try:path=self.path()
+            try:path=self.route_path()
             except ValueError:return self.respond({'error':'Query denied'},400)
             if path in ('/','/index.html'):return self.serve_file('index.html')
             if path=='/operator.html':return self.serve_file('operator.html')
@@ -102,7 +102,7 @@ def serve(repo:Path,site:Path,port:int,secret:str):
             return self.respond({'error':'Not found'},404)
         def do_POST(self):
             if not self.guard():return self.respond({'error':'Host/origin denied'},403)
-            try:path=self.path()
+            try:path=self.route_path()
             except ValueError:return self.respond({'error':'Query denied'},400)
             if not path.startswith('/api/studio/research/'):return self.respond({'error':'Writes not implemented outside offline research'},405)
             user=self.require_write()

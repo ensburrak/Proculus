@@ -71,8 +71,12 @@ def serve(repo:Path,site:Path,port:int,secret:str):
             if path in ('/','/index.html'):return self.serve_file('index.html')
             if path=='/operator.html':return self.serve_file('operator.html')
             if path=='/Proculus_Immersive_v9.html':return self.serve_file('Proculus_Immersive_v9.html')
+            if path=='/Proculus_Immersive_v10.html':return self.serve_file('Proculus_Immersive_v10.html')
             if path.startswith('/api/studio/v1/'):
                 key=path[len('/api/studio/v1/'):]
+                if key=='production-readiness':
+                    from live_readiness_probe import inspect
+                    return self.respond(inspect(repo))
                 if key=='health':return self.respond({'status':'ok','mode':'local_paper_only','utc':datetime.now(timezone.utc).isoformat(),'worker_enabled':enabled})
                 if key=='capabilities':return self.respond({'mode':'local_paper_only','legacy_sources':list(ALLOW),'real_orders':False,'model_deployment':False})
                 if key=='config':

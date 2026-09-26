@@ -1,0 +1,29 @@
+name: V10 Production Fail-Closed Proof
+on:
+  push:
+    paths:
+      - 'web/live_readiness_probe.py'
+      - 'web/paper_operator_v9.py'
+      - 'tests/test_v10_release_probe.py'
+      - '.github/workflows/studio-v10-safety.yml'
+  pull_request:
+    paths:
+      - 'web/live_readiness_probe.py'
+      - 'web/paper_operator_v9.py'
+      - 'tests/test_v10_release_probe.py'
+      - '.github/workflows/studio-v10-safety.yml'
+permissions:
+  contents: read
+jobs:
+  deny-unverified-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile local observer and release audit
+        run: python -m py_compile web/live_readiness_probe.py web/paper_operator_v9.py
+      - name: Verify missing components and false approvals cannot go live
+        run: python -m unittest discover -s tests -p test_v10_release_probe.py -v

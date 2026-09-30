@@ -1,0 +1,52 @@
+name: Fresh Universe Count
+
+on:
+  push:
+    branches:
+      - research/fresh-all-symbol-audit-20260930
+    paths:
+      - .github/workflows/fresh-universe-count.yml
+
+permissions:
+  contents: read
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Count current OKX universe
+        run: |
+          python -m pip install requests
+          python - <<'PY'
+          import json,time,requests
+          B='https://www.okx.com'
+          inst=requests.get(B+'/api/v5/public/instruments',params={'instType':'SWAP'},timeout=20).json()['data']
+          tick=requests.get(B+'/api/v5/market/tickers',params={'instType':'SWAP'},timeout=20).json()['data']
+          t={x['instId']:x for x in tick}
+          exc={'AAPL','AMZN','COIN','CRCL','GOOGL','MSFT','NVDA','PLTR','SPY','TSLA','XAG','XAU','ZEC'}
+          now=int(time.time()*1000); scanned=0; prelim=[]
+          reasons={}
+          def rej(k): reasons.__setitem__(k,reasons.get(k,0)+1)
+          for x in inst:
+            if x.get('state')!='live' or x.get('settleCcy')!='USDT' or x.get('ctType')!='linear': continue
+            scanned+=1; iid=x['instId']; base=iid.removesuffix('-USDT-SWAP')
+            if base in exc or base.startswith('TEST'): rej('excluded'); continue
+            age=(now-int(x.get('listTime') or 0))/86400000
+            if age<90: rej('listing_lt_90d'); continue
+            q=t.get(iid)
+            if not q: rej('ticker_missing'); continue
+            try:
+              bid=float(q['bidPx']);ask=float(q['askPx']);last=float(q['last']);vol=float(q['volCcy24h'])
+            except: rej('ticker_invalid'); continue
+            mid=(bid+ask)/2
+            if min(bid,ask,last)<=0 or mid<=0: rej('price_invalid'); continue
+            if (ask-bid)/mid>0.0005: rej('spread_gt_5bps'); continue
+            if vol*last<50_000_000: rej('volume_lt_50m'); continue
+            prelim.append(iid)
+          print(json.dumps({'scanned':scanned,'pre_funding_eligible':len(prelim),'rejections':reasons,'symbols':prelim},ensure_ascii=False))
+          PY

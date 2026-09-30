@@ -5,6 +5,7 @@ import json
 import math
 import time
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -221,7 +222,7 @@ def fetch_history(inst_id: str, days: int) -> pd.DataFrame:
         else:
             stagnant = 0
         after = str(batch_min)
-        time.sleep(0.12)
+        time.sleep(0.40)
 
     prepared = []
     for ts, raw in rows.items():
@@ -679,24 +680,30 @@ def main() -> None:
     print(json.dumps({"universe": universe_meta}, ensure_ascii=False))
     frames: dict[str, pd.DataFrame] = {}
     data_failures: dict[str, str] = {}
-    for idx, item in enumerate(eligible, 1):
-        inst = item["instId"]
-        print(
-            f"[{idx}/{len(eligible)}] history {inst}",
-            flush=True,
-        )
-        try:
-            df = fetch_history(inst, args.days)
-            if len(df) < max(500, args.oos_days * 24 * 4):
-                data_failures[inst] = (
-                    f"insufficient_bars:{len(df)}"
-                )
-                continue
-            frames[inst] = add_signals(df)
-        except Exception as exc:
-            data_failures[inst] = (
-                f"{type(exc).__name__}:{exc}"
+
+    def load_one(item: dict[str, Any]) -> tuple[str, pd.DataFrame]:
+        inst = str(item["instId"])
+        return inst, fetch_history(inst, args.days)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(load_one, item): item for item in eligible}
+        completed = 0
+        for future in as_completed(futures):
+            completed += 1
+            item = futures[future]
+            inst = str(item["instId"])
+            print(
+                f"[{completed}/{len(eligible)}] history complete {inst}",
+                flush=True,
             )
+            try:
+                _, df = future.result()
+                if len(df) < max(500, args.oos_days * 24 * 4):
+                    data_failures[inst] = f"insufficient_bars:{len(df)}"
+                    continue
+                frames[inst] = add_signals(df)
+            except Exception as exc:
+                data_failures[inst] = f"{type(exc).__name__}:{exc}"
 
     if not frames:
         raise SystemExit(

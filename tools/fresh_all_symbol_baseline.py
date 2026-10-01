@@ -324,6 +324,7 @@ def add_signals(df: pd.DataFrame) -> pd.DataFrame:
 class Position:
     symbol: str
     direction: int
+    regime: str
     qty: float
     entry_price: float
     entry_notional: float
@@ -338,6 +339,7 @@ class Position:
 class Trade:
     symbol: str
     direction: str
+    regime: str
     entry_time: str
     exit_time: str
     entry_price: float
@@ -449,6 +451,7 @@ def simulate(
                 Trade(
                     symbol=sym,
                     direction="long" if pos.direction == 1 else "short",
+                    regime=pos.regime,
                     entry_time=str(pos.entry_time),
                     exit_time=str(ts),
                     entry_price=pos.entry_price,
@@ -517,6 +520,7 @@ def simulate(
                 positions[sym] = Position(
                     symbol=sym,
                     direction=signal,
+                    regime=str(row.get("regime") or "unknown"),
                     qty=qty,
                     entry_price=entry_px,
                     entry_notional=notional,
@@ -566,6 +570,7 @@ def simulate(
             Trade(
                 symbol=sym,
                 direction="long" if pos.direction == 1 else "short",
+                regime=pos.regime,
                 entry_time=str(pos.entry_time),
                 exit_time=str(ts),
                 entry_price=pos.entry_price,
@@ -600,6 +605,53 @@ def simulate(
         for s, v in by_symbol.items()
     ]
     symbol_stats.sort(key=lambda x: x["pnl_usd"], reverse=True)
+
+    def grouped_stats(key_fn):
+        grouped: dict[str, list[Trade]] = defaultdict(list)
+        for trade in trades:
+            grouped[str(key_fn(trade))].append(trade)
+        out = []
+        for key, group in grouped.items():
+            gp = [t.pnl_usd for t in group]
+            gw = [p for p in gp if p > 0]
+            gl = [p for p in gp if p <= 0]
+            gr = [t.r_multiple for t in group]
+            gross_p = sum(gw)
+            gross_l = abs(sum(gl))
+            out.append({
+                "key": key,
+                "trades": len(group),
+                "wins": len(gw),
+                "win_rate_pct": round(len(gw) / len(group) * 100, 2) if group else 0.0,
+                "pnl_usd": round(sum(gp), 2),
+                "profit_factor": round(gross_p / gross_l, 3) if gross_l > 0 else None,
+                "expectancy_r": round(sum(gr) / len(gr), 4) if gr else 0.0,
+                "avg_r": round(sum(gr) / len(gr), 4) if gr else 0.0,
+            })
+        out.sort(key=lambda row: row["pnl_usd"], reverse=True)
+        return out
+
+    monthly_groups: dict[str, list[Trade]] = defaultdict(list)
+    for trade in trades:
+        try:
+            month = str(pd.Timestamp(trade.exit_time).to_period("M"))
+        except Exception:
+            month = "unknown"
+        monthly_groups[month].append(trade)
+    monthly_stats = []
+    for month, group in sorted(monthly_groups.items()):
+        vals = [t.pnl_usd for t in group]
+        rvals_m = [t.r_multiple for t in group]
+        wins_m = [v for v in vals if v > 0]
+        losses_m = [v for v in vals if v <= 0]
+        monthly_stats.append({
+            "month": month,
+            "trades": len(group),
+            "pnl_usd": round(sum(vals), 2),
+            "win_rate_pct": round(len(wins_m) / len(group) * 100, 2) if group else 0.0,
+            "profit_factor": round(sum(wins_m) / abs(sum(losses_m)), 3) if losses_m and abs(sum(losses_m)) > 0 else None,
+            "expectancy_r": round(sum(rvals_m) / len(rvals_m), 4) if rvals_m else 0.0,
+        })
 
     common_last = min(df.index.max() for df in frames.values())
     oos_days = max(
@@ -654,6 +706,13 @@ def simulate(
         "daily_halt_days": len(day_halted),
         "best_symbols": symbol_stats[:10],
         "worst_symbols": symbol_stats[-10:],
+        "all_symbols": symbol_stats,
+        "breakdown": {
+            "direction": grouped_stats(lambda t: t.direction),
+            "regime": grouped_stats(lambda t: t.regime),
+            "exit_reason": grouped_stats(lambda t: t.exit_reason),
+            "month": monthly_stats,
+        },
         "profile_parameters": dict(profile),
     }
 
@@ -808,4 +867,4 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# fresh-run-trigger: 2026-10-01
+# fresh-run-trigger: 2026-10-01-two-year

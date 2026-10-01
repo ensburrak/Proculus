@@ -807,3 +807,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# fresh-run-trigger: 2026-10-01

@@ -69,7 +69,9 @@
     "same_direction_size_factor": 0.5,
     "decision_authority": "independent",
     "merge_into_primary_pipeline": false,
-    "model_confirmation_required": false
+    "model_confirmation_required": false,
+    "tracking_namespace": "stochrsi_parallel",
+    "primary_pipeline_setup_registration": false
   },
   "edge_learning": {
     "enabled": true,
@@ -965,13 +967,7 @@
         "transition_confirm.persistent_retest.long.15m.v2",
         "transition_confirm.persistent_retest.short.15m.v2",
         "technical_consensus.long.15m.v1",
-        "technical_consensus.short.15m.v1",
-        "stochrsi_opportunity.bull.long.15m.v1",
-        "stochrsi_opportunity.bull.short.15m.v1",
-        "stochrsi_opportunity.bear.long.15m.v1",
-        "stochrsi_opportunity.bear.short.15m.v1",
-        "stochrsi_opportunity.range.long.15m.v1",
-        "stochrsi_opportunity.range.short.15m.v1"
+        "technical_consensus.short.15m.v1"
       ],
       "progress_file": "state/learning_probe_progress.json"
     }

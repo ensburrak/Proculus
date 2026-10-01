@@ -93,8 +93,8 @@
     "proposal_only": true,
     "disable_negative_expectancy_setups": true,
     "max_drawdown_block_pct": 20,
-    "min_profit_factor": 1.05,
-    "min_expectancy_r": 0,
+    "min_profit_factor": 1.15,
+    "min_expectancy_r": 0.05,
     "records_path": "reports/edge_events.jsonl",
     "stats_path": "reports/setup_edge_stats_latest.json",
     "proposal_path": "reports/edge_calibration_proposals_latest.json",
@@ -891,7 +891,7 @@
     "strict_edge_evidence": true,
     "allow_edge_cold_start": false,
     "edge_cold_start_size_scale": 0.25,
-    "edge_size_scale_leverage_cap_enabled": false,
+    "edge_size_scale_leverage_cap_enabled": true,
     "allow_llm_technical_fallback": false,
     "allow_llm_technical_fallback_in_no_trade_regime": false,
     "llm_technical_fallback_min_confidence": 0.68,
@@ -969,7 +969,8 @@
         "technical_consensus.long.15m.v1",
         "technical_consensus.short.15m.v1"
       ],
-      "progress_file": "state/learning_probe_progress.json"
+      "progress_file": "state/learning_probe_progress.json",
+      "allow_sample_collection_without_edge": true
     }
   },
   "max_concurrent_positions": 0,

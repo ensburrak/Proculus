@@ -1,0 +1,88 @@
+name: Proculus Two Year Attribution
+
+on:
+  pull_request:
+    paths:
+      - "decision/stochrsi_parallel.py"
+      - "runtime/runtime_loop_services.py"
+      - "runtime/runtime_ta_pack.py"
+      - "tools/fetch_okx_two_year_replay_data.py"
+      - "tools/fresh_two_year_v2_backtest.py"
+      - "tests/test_v2_runtime_integration.py"
+      - ".github/workflows/stochrsi-attribution-two-year.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proculus-two-year-attribution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install replay dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas pyarrow requests
+      - name: Fetch fresh OKX 730-day eligible universe
+        run: |
+          rm -rf scratch/proculus_attribution_730d
+          mkdir -p scratch/proculus_attribution_730d/ohlcv
+          python tools/fetch_okx_two_year_replay_data.py \
+            --days 730 \
+            --workers 6 \
+            --output-dir scratch/proculus_attribution_730d/ohlcv \
+            --metadata-output scratch/proculus_attribution_730d/fetch_metadata.json
+      - name: Run V2 versus StochRSI90 attribution
+        run: |
+          python tools/fresh_two_year_v2_backtest.py \
+            --days 730 \
+            --initial-balance 10000 \
+            --fee-bps 5 \
+            --slippage-bps 5,15,50 \
+            --modes v2_only,stochrsi90_only,combined_independent \
+            --data-dir scratch/proculus_attribution_730d/ohlcv \
+            --output scratch/proculus_attribution_730d/result.json
+      - name: Validate attribution report
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("scratch/proculus_attribution_730d")
+          report = json.loads((root / "result.json").read_text())
+          fetch = json.loads((root / "fetch_metadata.json").read_text())
+          expected = {"v2_only", "stochrsi90_only", "combined_independent"}
+          if set(report.get("scenarios") or {}) != expected:
+              raise SystemExit("missing attribution mode")
+          if int(fetch.get("downloaded_count") or 0) <= 0:
+              raise SystemExit("no fresh OKX data downloaded")
+          for mode in expected:
+              costs = report["scenarios"][mode]
+              if set(costs) != {"slippage_5bps", "slippage_15bps", "slippage_50bps"}:
+                  raise SystemExit(f"incomplete cost scenarios for {mode}")
+          print("PROCULUS_ATTRIBUTION_RESULT=" + json.dumps({
+              "downloaded_count": fetch.get("downloaded_count"),
+              "candidate_count": report.get("candidate_count"),
+              "scenarios": report.get("scenarios"),
+          }, separators=(",", ":")))
+          PY
+      - name: Upload attribution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proculus-two-year-attribution
+          path: |
+            scratch/proculus_attribution_730d/result.json
+            scratch/proculus_attribution_730d/fetch_metadata.json
+          retention-days: 14
+          if-no-files-found: error

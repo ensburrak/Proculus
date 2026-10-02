@@ -8,6 +8,7 @@ from typing import Any
 from core.decision_pipeline import DecisionPipeline
 from .execution_bridge import execute_decision
 from .runtime_analysis_services import _analyze_one
+from .stochrsi_parallel import build_stochrsi_parallel_decision
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,6 +44,26 @@ async def trading_loop_async_service(exchange: Any, symbols: list[str], *, runti
                 execution = await execute_decision(exchange, item, decision, cfg)
                 decision = dict(decision)
                 decision["execution"] = execution
+
+                stoch_decision = build_stochrsi_parallel_decision(item, cfg)
+                if str(stoch_decision.get("action") or "").lower() == "enter":
+                    if str(decision.get("action") or "").lower() == "enter":
+                        stoch_execution = {
+                            "status": "blocked_primary_symbol_slot_occupied",
+                            "order_sent": False,
+                        }
+                    elif stoch_decision.get("order_authorized") is True:
+                        stoch_execution = await execute_decision(exchange, item, stoch_decision, cfg)
+                    else:
+                        stoch_execution = {
+                            "status": "blocked_by_stochrsi_mode_policy",
+                            "order_sent": False,
+                        }
+                else:
+                    stoch_execution = {"status": "not_applicable", "order_sent": False}
+                stoch_decision = dict(stoch_decision)
+                stoch_decision["execution"] = stoch_execution
+                decision["stochrsi_parallel"] = stoch_decision
                 latest[symbol] = decision
 
         if once:

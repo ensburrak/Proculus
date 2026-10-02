@@ -203,46 +203,63 @@ def gamma_markets_for_slugs(
         for offset in range(0, len(remaining), batch_size)
     ]
 
-    def fetch_batch(batch: tuple[str, ...]) -> dict[str, dict[str, Any]]:
+    def fetch_batch(
+        batch: tuple[str, ...],
+    ) -> tuple[bool, dict[str, dict[str, Any]]]:
         params: list[tuple[str, str]] = [("slug", slug) for slug in batch]
         params.append(("limit", str(max(len(batch), 1))))
         url = "https://gamma-api.polymarket.com/events?" + urllib.parse.urlencode(params)
         try:
             data = fetch_json(url)
         except Exception:
-            data = []
-        batch_found: dict[str, dict[str, Any]] = {}
-        if isinstance(data, list):
-            batch_set = set(batch)
-            for event in data:
-                if not isinstance(event, dict):
-                    continue
-                markets = event.get("markets") or []
-                if not isinstance(markets, list):
-                    continue
-                for market in markets:
-                    if not isinstance(market, dict):
-                        continue
-                    slug = str(market.get("slug") or "")
-                    if slug in batch_set:
-                        batch_found[slug] = market
-        return batch_found
+            return False, {}
+        if not isinstance(data, list):
+            return False, {}
 
+        batch_found: dict[str, dict[str, Any]] = {}
+        batch_set = set(batch)
+        for event in data:
+            if not isinstance(event, dict):
+                continue
+            markets = event.get("markets") or []
+            if not isinstance(markets, list):
+                continue
+            for market in markets:
+                if not isinstance(market, dict):
+                    continue
+                slug = str(market.get("slug") or "")
+                if slug in batch_set:
+                    batch_found[slug] = market
+        # A syntactically valid successful Gamma batch response is authoritative
+        # for all requested slug filters. An absent slug is a genuine miss and
+        # must not trigger thousands of redundant one-by-one lookups.
+        return True, batch_found
+
+    failed_batch_slugs: list[str] = []
     if batches:
         with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
             futures = {pool.submit(fetch_batch, batch): batch for batch in batches}
             for future in as_completed(futures):
+                batch = futures[future]
                 try:
-                    found.update(future.result())
+                    success, batch_found = future.result()
                 except Exception:
-                    continue
+                    success, batch_found = False, {}
+                if success:
+                    found.update(batch_found)
+                else:
+                    failed_batch_slugs.extend(batch)
 
-    missing = [slug for slug in remaining if slug not in found]
-    if missing:
-        with ThreadPoolExecutor(max_workers=min(workers, len(missing))) as pool:
+    fallback_slugs = [
+        slug for slug in failed_batch_slugs if slug not in found
+    ]
+    if fallback_slugs:
+        with ThreadPoolExecutor(
+            max_workers=min(workers, len(fallback_slugs))
+        ) as pool:
             futures = {
                 pool.submit(gamma_market_for_slug, slug): slug
-                for slug in missing
+                for slug in fallback_slugs
             }
             for future in as_completed(futures):
                 slug = futures[future]

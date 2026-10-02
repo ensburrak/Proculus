@@ -532,3 +532,60 @@ def test_negative_ml_evidence_ends_in_strict_no_trade() -> None:
     assert len(stages["point_in_time_ml"]) == len(trades)
     assert policy.strict_edge_evidence_passed is False
     assert stages["strict_edge_evidence"] == []
+
+
+def test_portfolio_replay_can_diversify_daily_worst_case_budget_across_slots() -> None:
+    trades = [
+        _trade(
+            f"slot-{index}",
+            10,
+            100,
+            -2.5,
+            symbol=f"S{index}USD",
+            cost=2.5,
+        )
+        for index in range(8)
+    ]
+
+    result = replay_portfolio(
+        trades,
+        PortfolioReplayConfig(
+            initial_balance=100.0,
+            max_open_exposure_pct=0.20,
+            max_market_exposure_pct=0.05,
+            max_symbol_exposure_pct=0.10,
+            max_concurrent_positions=8,
+            max_daily_loss_pct=0.05,
+            max_drawdown_pct=0.20,
+            risk_budget_slots=8,
+        ),
+    )
+
+    assert len(result.accepted_trades) == 8
+    assert all(trade.cost_basis_usd == 0.625 for trade in result.accepted_trades)
+    assert result.final_cash == 95.0
+    assert "daily_loss_budget_at_risk" not in result.rejection_counts
+
+
+def test_portfolio_replay_default_keeps_source_notional_contract() -> None:
+    trades = [
+        _trade(f"default-{index}", 10, 100, -2.5, symbol=f"S{index}USD", cost=2.5)
+        for index in range(3)
+    ]
+
+    result = replay_portfolio(
+        trades,
+        PortfolioReplayConfig(
+            initial_balance=100.0,
+            max_open_exposure_pct=0.20,
+            max_market_exposure_pct=0.05,
+            max_symbol_exposure_pct=0.10,
+            max_concurrent_positions=8,
+            max_daily_loss_pct=0.05,
+            max_drawdown_pct=0.20,
+        ),
+    )
+
+    assert len(result.accepted_trades) == 2
+    assert all(trade.cost_basis_usd == 2.5 for trade in result.accepted_trades)
+    assert result.rejection_counts["daily_loss_budget_at_risk"] == 1

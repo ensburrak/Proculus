@@ -76,7 +76,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pandas pyarrow
 
-      - name: Convert parquet replay cache to portable pickle gzip
+      - name: Convert parquet replay cache to portable NumPy NPZ
         run: |
           rm -rf scratch/portable_okx_replay
           mkdir -p scratch/portable_okx_replay/ohlcv
@@ -84,21 +84,37 @@ jobs:
           import json
           import shutil
           from pathlib import Path
+          import numpy as np
           import pandas as pd
 
           src=Path("scratch/fresh_proculus_two_year")
           dst=Path("scratch/portable_okx_replay")
           rows=[]
+          required=("timestamp","open","high","low","close","volume")
           for p in sorted((src/"ohlcv").glob("*.parquet")):
               df=pd.read_parquet(p)
-              out=dst/"ohlcv"/(p.stem+".pkl.gz")
-              df.to_pickle(out,compression="gzip",protocol=4)
+              missing=[c for c in required if c not in df.columns]
+              if missing:
+                  raise RuntimeError(f"{p.name} missing columns: {missing}")
+              ts=pd.to_datetime(df["timestamp"],utc=True).to_numpy(dtype="datetime64[ns]").astype("int64")
+              out=dst/"ohlcv"/(p.stem+".npz")
+              np.savez_compressed(
+                  out,
+                  timestamp_ns=ts,
+                  open=pd.to_numeric(df["open"],errors="coerce").to_numpy(dtype="float64"),
+                  high=pd.to_numeric(df["high"],errors="coerce").to_numpy(dtype="float64"),
+                  low=pd.to_numeric(df["low"],errors="coerce").to_numpy(dtype="float64"),
+                  close=pd.to_numeric(df["close"],errors="coerce").to_numpy(dtype="float64"),
+                  volume=pd.to_numeric(df["volume"],errors="coerce").to_numpy(dtype="float64"),
+              )
               rows.append({"source":p.name,"portable":out.name,"rows":len(df)})
           shutil.copy2(src/"fetch_metadata.json",dst/"fetch_metadata.json")
           manifest={
               "source":"Proculus same-day OKX replay cache",
               "history_days":730,
-              "format":"pandas_pickle_gzip_protocol4",
+              "format":"numpy_npz_compressed",
+              "columns":["timestamp_ns","open","high","low","close","volume"],
+              "timestamp_unit":"ns_utc",
               "file_count":len(rows),
               "files":rows,
           }
@@ -109,7 +125,7 @@ jobs:
       - name: Upload portable replay dataset
         uses: actions/upload-artifact@v4
         with:
-          name: okx-730d-replay-portable
+          name: okx-730d-replay-npz
           path: scratch/portable_okx_replay
           compression-level: 0
           retention-days: 3

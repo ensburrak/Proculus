@@ -8,6 +8,11 @@ from typing import Any
 from core.decision_pipeline import DecisionPipeline
 from .execution_bridge import execute_decision
 from .runtime_analysis_services import _analyze_one
+from .paper_probe_ledger import (
+    authorize_learning_probe_entry,
+    register_learning_probe_entry,
+    settle_open_positions,
+)
 from .stochrsi_parallel import build_stochrsi_parallel_decision
 from .runtime_symbol_universe import resolve_runtime_symbols
 
@@ -38,13 +43,45 @@ async def trading_loop_async_service(exchange: Any, symbols: list[str], *, runti
                 items.append(item)
 
         if items:
+            paper_mode = str(runtime_mode).lower() in {"paper", "sim"}
+            settled_by_symbol: dict[str, list[dict[str, Any]]] = {}
+            if paper_mode:
+                for closed in settle_open_positions(items, cfg):
+                    settled_by_symbol.setdefault(str(closed.get("symbol") or ""), []).append(closed)
+
             decisions = await pipeline.decide_batch(items)
             for item in items:
                 symbol = str(item.get("symbol") or "")
-                decision = decisions.get(symbol, {"action": "hold", "reason": "missing decision"})
-                execution = await execute_decision(exchange, item, decision, cfg)
-                decision = dict(decision)
+                decision = dict(decisions.get(symbol, {"action": "hold", "reason": "missing decision"}))
+                probe_gate: dict[str, Any] | None = None
+
+                learning = decision.get("learning_probe") if isinstance(decision.get("learning_probe"), dict) else {}
+                if (
+                    paper_mode
+                    and str(decision.get("action") or "").lower() == "enter"
+                    and learning.get("active") is True
+                ):
+                    probe_gate = authorize_learning_probe_entry(item, decision, cfg)
+                    decision["paper_probe_gate"] = probe_gate
+                    if probe_gate.get("allowed") is not True:
+                        execution = {
+                            "status": "blocked_by_learning_probe_governor",
+                            "order_sent": False,
+                            "paper_probe_gate": probe_gate,
+                        }
+                    else:
+                        decision["risk_scale"] = float(probe_gate.get("risk_scale", decision.get("risk_scale", 0.0)) or 0.0)
+                        execution = await execute_decision(exchange, item, decision, cfg)
+                        if execution.get("status") == "simulated":
+                            registration = register_learning_probe_entry(item, decision, cfg)
+                            execution = dict(execution)
+                            execution["paper_probe_registration"] = registration
+                else:
+                    execution = await execute_decision(exchange, item, decision, cfg)
+
                 decision["execution"] = execution
+                if settled_by_symbol.get(symbol):
+                    decision["paper_probe_settled"] = settled_by_symbol[symbol]
 
                 stoch_decision = build_stochrsi_parallel_decision(item, cfg)
                 if str(stoch_decision.get("action") or "").lower() == "enter":

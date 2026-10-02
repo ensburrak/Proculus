@@ -324,3 +324,28 @@ def test_live_execution_requires_complete_release_contract_before_submit() -> No
     assert result["order_sent"] is True
     assert result["strategy_release"]["reason"] == "released"
     assert len(exchange.calls) == 1
+
+def test_strategy_release_is_empty_and_live_fail_closed() -> None:
+    from runtime.strategy_release_gate import evaluate_strategy_release
+
+    config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    release = config["strategy_release"]
+    assert release["allowed_setup_ids"] == []
+    assert release["allow_live"] is False
+    assert release["allow_testnet"] is False
+    assert release["required_strategy_oos_evidence_hash"] == ""
+    assert release["required_strategy_policy_hash"] == ""
+
+    decision = {
+        "action": "enter",
+        "setup_id": "bull_trend.pullback.long.15m.v2",
+        "edge_contract": {"validated": True},
+    }
+    audit = evaluate_strategy_release(
+        item={"runtime_mode": "live"},
+        decision=decision,
+        config=config,
+    )
+    assert audit["allowed"] is False
+    assert audit["reason"] == "runtime_mode_not_released"
+

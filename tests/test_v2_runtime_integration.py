@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import controller_async
@@ -12,6 +13,8 @@ from core.decision_pipeline import DecisionPipeline
 from decision.official_pipeline import process_symbol_decision
 from runtime.execution_bridge import execute_decision
 from runtime.runtime_symbol_universe import resolve_runtime_symbols
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:

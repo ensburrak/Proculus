@@ -164,3 +164,91 @@ def test_batch_price_history_groups_tokens_without_fabricating_rows(monkeypatch)
     assert calls[0]["fidelity"] == 1
     assert set(found) == {"token-a", "token-b", "token-c"}
     assert found["token-a"] == [(100, 0.4), (110, 0.6)]
+
+
+def test_gamma_discovery_reuses_settled_market_cache(tmp_path: Path, monkeypatch) -> None:
+    slug = "btc-updown-5m-100"
+    network_calls = 0
+
+    def fake_fetch(url: str, attempts: int = 5):
+        del attempts
+        nonlocal network_calls
+        network_calls += 1
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        requested = query.get("slug", [])
+        return [
+            {
+                "markets": [
+                    {
+                        "slug": item,
+                        "closed": True,
+                        "outcomes": '["Up", "Down"]',
+                        "outcomePrices": '["1", "0"]',
+                    }
+                    for item in requested
+                ]
+            }
+        ]
+
+    monkeypatch.setattr(_MODULE, "fetch_json", fake_fetch)
+    first = _MODULE.gamma_markets_for_slugs(
+        {slug},
+        cache_dir=tmp_path,
+        workers=2,
+    )
+    assert slug in first
+    assert network_calls == 1
+
+    def fail_fetch(*_args, **_kwargs):
+        raise AssertionError("settled Gamma cache should avoid network")
+
+    monkeypatch.setattr(_MODULE, "fetch_json", fail_fetch)
+    second = _MODULE.gamma_markets_for_slugs(
+        {slug},
+        cache_dir=tmp_path,
+        workers=2,
+    )
+    assert second[slug]["slug"] == slug
+
+
+def test_batch_price_history_reuses_immutable_token_cache(tmp_path: Path, monkeypatch) -> None:
+    network_calls = 0
+
+    def fake_post(url: str, payload: dict, attempts: int = 5):
+        del attempts
+        nonlocal network_calls
+        network_calls += 1
+        assert url.endswith("/batch-prices-history")
+        return {
+            "history": {
+                token: [
+                    {"t": 100, "p": "0.40"},
+                    {"t": 110, "p": "0.60"},
+                ]
+                for token in payload["markets"]
+            }
+        }
+
+    monkeypatch.setattr(_MODULE, "post_json", fake_post)
+    first = _MODULE.batch_instrument_histories(
+        {"token-a", "token-b"},
+        start_ts=90,
+        end_ts=120,
+        cache_dir=tmp_path,
+        workers=2,
+    )
+    assert set(first) == {"token-a", "token-b"}
+    assert network_calls == 1
+
+    def fail_post(*_args, **_kwargs):
+        raise AssertionError("cached closed-market token history should avoid network")
+
+    monkeypatch.setattr(_MODULE, "post_json", fail_post)
+    second = _MODULE.batch_instrument_histories(
+        {"token-a", "token-b"},
+        start_ts=90,
+        end_ts=120,
+        cache_dir=tmp_path,
+        workers=2,
+    )
+    assert second == first

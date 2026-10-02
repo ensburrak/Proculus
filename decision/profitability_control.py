@@ -116,6 +116,15 @@ def evaluate_profitability_control(
     pipeline = cfg.get("pipeline_v2") if isinstance(cfg.get("pipeline_v2"), dict) else {}
     pcfg = pipeline.get("profitability_control") if isinstance(pipeline.get("profitability_control"), dict) else {}
     action = str(decision.get("action") or "").strip().lower()
+    if pcfg.get("enabled") is False:
+        checks = {"action": action, "bypass": "profitability_control_disabled"}
+        return ProfitabilityControlResult(
+            True,
+            "disabled",
+            max(0.0, min(1.0, float(_f(decision.get("risk_scale")) or 1.0))),
+            max(0.0, float(_f(decision.get("max_leverage")) or _f(decision.get("lev")) or 1.0)),
+            checks,
+        )
     regime = str(decision.get("regime") or item.get("regime") or "unknown").strip().lower()
     setup_id = str(decision.get("setup_id") or "")
     checks: dict[str, Any] = {"action": action, "regime": regime, "setup_id": setup_id}

@@ -93,6 +93,7 @@ class FittedPolicy:
     ml_model: LogisticModel | None
     ml_gate_available: bool
     ml_no_trade: bool
+    strict_edge_evidence_passed: bool
 
 
 def _direction(trade: SettledTrade) -> float:
@@ -701,9 +702,10 @@ def fit_policy(
         trades,
         config.min_symbol_train_markets,
     )
+    symbol_no_trade = symbol_gate_available and not symbols
     current = (
         [trade for trade in trades if trade.symbol in symbols]
-        if symbol_gate_available
+        if symbol_gate_available and symbols
         else list(trades)
     )
 
@@ -711,51 +713,87 @@ def fit_policy(
         current,
         config.min_setup_train_markets,
     )
+    setup_no_trade = setup_gate_available and not setup_families
     current = (
         [
             trade
             for trade in current
             if _setup_family(trade) in setup_families
         ]
-        if setup_gate_available
+        if setup_gate_available and setup_families
         else current
     )
 
     low, high, regimes, regime_gate_available = _fit_regimes(current)
+    regime_no_trade = regime_gate_available and not regimes
     current = (
         [
             trade
             for trade in current
             if _regime_label(trade, low, high) in regimes
         ]
-        if regime_gate_available
+        if regime_gate_available and regimes
         else current
     )
 
-    consensus = _fit_consensus_threshold(current)
-    current = [
-        trade
-        for trade in current
-        if technical_consensus_score(trade) >= consensus
-    ]
+    (
+        consensus,
+        consensus_gate_available,
+        consensus_no_trade,
+    ) = _fit_consensus_threshold(current)
+    if consensus_gate_available and not consensus_no_trade:
+        current = [
+            trade
+            for trade in current
+            if technical_consensus_score(trade) >= consensus
+        ]
 
-    min_edge, max_spread = _fit_execution_quality(current)
-    if min_edge is not None:
-        filtered: list[SettledTrade] = []
-        for trade in current:
-            edge = _finite(getattr(trade, "net_edge", None))
-            spread = _finite(getattr(trade, "prediction_spread", None))
-            if edge is None or edge < min_edge:
-                continue
-            if max_spread is not None and (spread is None or spread > max_spread):
-                continue
-            filtered.append(trade)
-        if _filter_improves(current, filtered):
-            current = filtered
-        else:
-            min_edge, max_spread = None, None
+    (
+        min_edge,
+        max_spread,
+        execution_gate_available,
+        execution_no_trade,
+    ) = _fit_execution_quality(current)
+    if (
+        execution_gate_available
+        and not execution_no_trade
+        and min_edge is not None
+    ):
+        current = [
+            trade
+            for trade in current
+            if (
+                (edge := _finite(getattr(trade, "net_edge", None))) is not None
+                and edge >= min_edge
+                and (
+                    max_spread is None
+                    or (
+                        (spread := _finite(
+                            getattr(trade, "prediction_spread", None)
+                        ))
+                        is not None
+                        and spread <= max_spread
+                    )
+                )
+            )
+        ]
 
-    ml_model = _fit_logistic(current, config.min_ml_train_trades)
+    ml_model, ml_gate_available, ml_no_trade = _fit_logistic(
+        current,
+        config.min_ml_train_trades,
+    )
+
+    strict_edge_evidence_passed = not any(
+        (
+            symbol_no_trade,
+            setup_no_trade,
+            regime_no_trade,
+            consensus_gate_available and consensus_no_trade,
+            execution_gate_available and execution_no_trade,
+            ml_gate_available and ml_no_trade,
+        )
+    )
+
     return FittedPolicy(
         selected_symbols=symbols,
         symbol_gate_available=symbol_gate_available,
@@ -775,8 +813,8 @@ def fit_policy(
         ml_model=ml_model,
         ml_gate_available=ml_gate_available,
         ml_no_trade=ml_no_trade,
+        strict_edge_evidence_passed=strict_edge_evidence_passed,
     )
-
 
 def _summary(trades: list[SettledTrade]) -> dict[str, Any]:
     trade_stats = trade_return_summary([trade.realized_return for trade in trades])
@@ -796,6 +834,7 @@ def _apply_policy_stages(
     policy: FittedPolicy,
     config: AdaptivePolicyConfig,
 ) -> dict[str, list[SettledTrade]]:
+    del config
     stages: dict[str, list[SettledTrade]] = {"baseline": list(trades)}
     current = (
         [
@@ -803,7 +842,7 @@ def _apply_policy_stages(
             for trade in stages["baseline"]
             if trade.symbol in policy.selected_symbols
         ]
-        if policy.symbol_gate_available
+        if policy.symbol_gate_available and policy.selected_symbols
         else list(stages["baseline"])
     )
     stages["dynamic_symbol"] = current
@@ -813,7 +852,7 @@ def _apply_policy_stages(
             for trade in current
             if _setup_family(trade) in policy.selected_setup_families
         ]
-        if policy.setup_gate_available
+        if policy.setup_gate_available and policy.selected_setup_families
         else current
     )
     stages["setup_alignment"] = current
@@ -828,51 +867,54 @@ def _apply_policy_stages(
             )
             in policy.selected_regimes
         ]
-        if policy.regime_gate_available
+        if policy.regime_gate_available and policy.selected_regimes
         else current
     )
     stages["regime_veto"] = current
-    if policy.consensus_gate_available:
-        current = (
-            []
-            if policy.consensus_no_trade
-            else [
-                trade
-                for trade in current
-                if technical_consensus_score(trade) >= policy.min_consensus
-            ]
-        )
-    stages["technical_consensus"] = current
-    if policy.execution_gate_available:
-        if policy.execution_no_trade:
-            current = []
-        elif policy.min_net_edge is not None:
-            filtered: list[SettledTrade] = []
-            for trade in current:
-                edge = _finite(getattr(trade, "net_edge", None))
-                spread = _finite(getattr(trade, "prediction_spread", None))
-                if edge is None or edge < policy.min_net_edge:
-                    continue
-                if (
-                    policy.max_prediction_spread is not None
-                    and (spread is None or spread > policy.max_prediction_spread)
-                ):
-                    continue
-                filtered.append(trade)
-            current = filtered
-    stages["execution_quality"] = current
-    if policy.ml_gate_available:
-        if policy.ml_no_trade:
-            current = []
-        elif policy.ml_model is not None:
-            current = [
-                trade
-                for trade in current
-                if policy.ml_model.probability(trade) >= policy.ml_model.threshold
-            ]
-    stages["point_in_time_ml"] = current
-    return stages
 
+    if policy.consensus_gate_available and not policy.consensus_no_trade:
+        current = [
+            trade
+            for trade in current
+            if technical_consensus_score(trade) >= policy.min_consensus
+        ]
+    stages["technical_consensus"] = current
+
+    if (
+        policy.execution_gate_available
+        and not policy.execution_no_trade
+        and policy.min_net_edge is not None
+    ):
+        filtered: list[SettledTrade] = []
+        for trade in current:
+            edge = _finite(getattr(trade, "net_edge", None))
+            spread = _finite(getattr(trade, "prediction_spread", None))
+            if edge is None or edge < policy.min_net_edge:
+                continue
+            if (
+                policy.max_prediction_spread is not None
+                and (spread is None or spread > policy.max_prediction_spread)
+            ):
+                continue
+            filtered.append(trade)
+        current = filtered
+    stages["execution_quality"] = current
+
+    if (
+        policy.ml_gate_available
+        and not policy.ml_no_trade
+        and policy.ml_model is not None
+    ):
+        current = [
+            trade
+            for trade in current
+            if policy.ml_model.probability(trade) >= policy.ml_model.threshold
+        ]
+    stages["point_in_time_ml"] = current
+    stages["strict_edge_evidence"] = (
+        current if policy.strict_edge_evidence_passed else []
+    )
+    return stages
 
 def evaluate_policy_stages(
     trades: list[SettledTrade],
@@ -923,7 +965,7 @@ def adaptive_walk_forward_report(
         test_trades = [trade for trade in trades if trade.market_id in test_ids]
         policy = fit_policy(train_trades, config)
         stages = _apply_policy_stages(test_trades, policy, config)
-        final_stage = stages["point_in_time_ml"]
+        final_stage = stages["strict_edge_evidence"]
         final_summary = _summary(final_stage)
         final_mean = final_summary["market_return_stats"].get("mean")
         if final_mean is not None and float(final_mean) > 0:
@@ -951,6 +993,7 @@ def adaptive_walk_forward_report(
             "execution_no_trade": policy.execution_no_trade,
             "ml_gate_available": policy.ml_gate_available,
             "ml_no_trade": policy.ml_no_trade,
+            "strict_edge_evidence_passed": policy.strict_edge_evidence_passed,
             "ml": (
                 {
                     "threshold": policy.ml_model.threshold,

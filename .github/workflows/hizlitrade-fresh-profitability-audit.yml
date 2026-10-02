@@ -1,0 +1,40 @@
+name: HIZLITRADE Fresh Profitability Audit
+
+on:
+  push:
+    branches:
+      - research/hizlitrade-profitability-host-20261003
+    paths:
+      - tools/fresh_hizlitrade_backtest.py
+      - hizlitrade/**
+      - .github/workflows/hizlitrade-fresh-profitability-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        hours: [72, 168]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run fresh HIZLITRADE profitability audit
+        env:
+          PYTHONPATH: .
+        run: python tools/fresh_hizlitrade_backtest.py --hours ${{ matrix.hours }} --output fresh_hizlitrade_${{ matrix.hours }}h.json
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-hizlitrade-${{ matrix.hours }}h
+          path: fresh_hizlitrade_${{ matrix.hours }}h.json
+          if-no-files-found: error
+          retention-days: 7

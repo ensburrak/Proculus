@@ -12,6 +12,9 @@ class ExpertSignal:
     strategy: str
     reasoning: list[str]
     max_leverage: int = 1
+    stop_atr_mult: float = 1.5
+    tp_r_target: float = 2.5
+    max_hold_hours: float = 48.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

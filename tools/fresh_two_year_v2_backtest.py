@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import decision.official_pipeline as v2_pipeline
-from risk.stop_manager import calculate_dynamic_tp_sl
+from decision.stochrsi_opportunity import evaluate_stochrsi_opportunity
 
 OUT_DIR = ROOT / "scratch" / "fresh_proculus_two_year"
 
@@ -39,6 +39,9 @@ class Candidate:
     leverage: float
     atr: float
     decision_price: float
+    stop_atr_mult: float = 1.5
+    tp_r_target: float = 2.5
+    max_hold_bars: int = 192
 
 
 @dataclass
@@ -120,6 +123,22 @@ def classic_stoch(df: pd.DataFrame, period: int = 14) -> pd.Series:
     return raw.rolling(3, min_periods=3).mean().clip(0, 100)
 
 
+def stoch_rsi_series(close: pd.Series, rsi_period: int, stoch_period: int) -> tuple[pd.Series, pd.Series]:
+    delta = close.diff()
+    gain = delta.clip(lower=0.0)
+    loss = -delta.clip(upper=0.0)
+    avg_gain = gain.ewm(alpha=1.0 / rsi_period, adjust=False, min_periods=rsi_period).mean()
+    avg_loss = loss.ewm(alpha=1.0 / rsi_period, adjust=False, min_periods=rsi_period).mean()
+    rs = avg_gain / avg_loss.replace(0.0, np.nan)
+    rsi = 100.0 - (100.0 / (1.0 + rs))
+    lo = rsi.rolling(stoch_period, min_periods=stoch_period).min()
+    hi = rsi.rolling(stoch_period, min_periods=stoch_period).max()
+    raw = 100.0 * (rsi - lo) / (hi - lo).replace(0.0, np.nan)
+    k = raw.rolling(3, min_periods=3).mean()
+    d = k.rolling(3, min_periods=3).mean()
+    return k.clip(0, 100), d.clip(0, 100)
+
+
 def symbol_from_path(path: Path) -> str:
     stem = path.stem
     if stem.endswith("_15m"):
@@ -170,6 +189,16 @@ def prepare_frame(symbol: str, data_dir: Path, days: int) -> pd.DataFrame:
         df[col] = dmi[col]
     df["atr_ratio"] = df["atr"] / df["close"].replace(0.0, np.nan)
     df["stoch_k"] = classic_stoch(df)
+    k90, d90 = stoch_rsi_series(close, 90, 90)
+    k80, d80 = stoch_rsi_series(close, 80, 80)
+    df["stoch_rsi_90_k"] = k90
+    df["stoch_rsi_90_d"] = d90
+    df["stoch_rsi_90_prev_k"] = k90.shift(1)
+    df["stoch_rsi_90_prev_d"] = d90.shift(1)
+    df["stoch_rsi_80_k"] = k80
+    df["stoch_rsi_80_d"] = d80
+    df["stoch_rsi_80_prev_k"] = k80.shift(1)
+    df["stoch_rsi_80_prev_d"] = d80.shift(1)
     vol_mean = df["volume"].rolling(20, min_periods=20).mean().shift(1)
     vol_std = df["volume"].rolling(20, min_periods=20).std(ddof=0).shift(1)
     df["volume_spike_ratio"] = df["volume"] / vol_mean.replace(0.0, np.nan)
@@ -277,6 +306,15 @@ def build_item(symbol: str, row: pd.Series, recent: pd.DataFrame) -> dict[str, A
         "close": f(row.get("close")),
         "rsi": f(row.get("rsi")),
         "stoch_k": f(row.get("stoch_k")),
+        "stoch_rsi_90_k": f(row.get("stoch_rsi_90_k")),
+        "stoch_rsi_90_d": f(row.get("stoch_rsi_90_d")),
+        "stoch_rsi_90_prev_k": f(row.get("stoch_rsi_90_prev_k")),
+        "stoch_rsi_90_prev_d": f(row.get("stoch_rsi_90_prev_d")),
+        "stoch_rsi_80_k": f(row.get("stoch_rsi_80_k")),
+        "stoch_rsi_80_d": f(row.get("stoch_rsi_80_d")),
+        "stoch_rsi_80_prev_k": f(row.get("stoch_rsi_80_prev_k")),
+        "stoch_rsi_80_prev_d": f(row.get("stoch_rsi_80_prev_d")),
+        "stoch_rsi_warmup_ok": bool(pd.notna(row.get("stoch_rsi_90_k")) and pd.notna(row.get("stoch_rsi_90_d"))),
         "adx": f(row.get("adx")),
         "atr": f(row.get("atr")),
         "atr_ratio": f(row.get("atr_ratio")),
@@ -297,38 +335,86 @@ def build_item(symbol: str, row: pd.Series, recent: pd.DataFrame) -> dict[str, A
     }
 
 
+def _stoch_cross_prefilter(row: pd.Series) -> bool:
+    k=f(row.get("stoch_rsi_90_k"), float("nan"))
+    d=f(row.get("stoch_rsi_90_d"), float("nan"))
+    pk=f(row.get("stoch_rsi_90_prev_k"), float("nan"))
+    pdv=f(row.get("stoch_rsi_90_prev_d"), float("nan"))
+    if not all(math.isfinite(v) for v in (k,d,pk,pdv)):
+        return False
+    return (pk < pdv and k >= d) or (pk > pdv and k <= d)
+
+
 def generate_candidates(symbol: str, frame: pd.DataFrame) -> list[Candidate]:
     candidates: list[Candidate] = []
     for idx in range(800, len(frame) - 1):
         row = frame.iloc[idx]
         recent = frame.iloc[max(0, idx - 7): idx + 1]
-        if not prefilter(row, recent):
+        primary_possible = prefilter(row, recent)
+        stoch_possible = _stoch_cross_prefilter(row)
+        if not primary_possible and not stoch_possible:
             continue
+
         item = build_item(symbol, row, recent)
-        decision = v2_pipeline.process_symbol_decision(item=item, ai_part={})
-        if str(decision.get("action") or "").lower() != "enter":
-            continue
         atr = f(row.get("atr"))
         if atr <= 0:
             continue
-        candidates.append(
-            Candidate(
-                symbol=symbol,
-                decision_idx=idx,
-                entry_idx=idx + 1,
-                entry_time=pd.Timestamp(frame.iloc[idx + 1]["timestamp"]),
-                side=str(decision.get("direction")),
-                setup_id=str(decision.get("setup_id") or "unknown"),
-                strategy=str(decision.get("strategy") or "unknown"),
-                regime=str(decision.get("regime") or row.get("regime") or "unknown"),
-                confidence=f(decision.get("master_confidence")),
-                risk_scale=f(decision.get("risk_scale"), 1.0),
-                leverage=max(1.0, f(decision.get("lev"), 1.0)),
-                atr=atr,
-                decision_price=f(row.get("close")),
-            )
-        )
-    return candidates
+
+        if primary_possible:
+            decision = v2_pipeline.process_symbol_decision(item=item, ai_part={})
+            if str(decision.get("action") or "").lower() == "enter":
+                candidates.append(
+                    Candidate(
+                        symbol=symbol,
+                        decision_idx=idx,
+                        entry_idx=idx + 1,
+                        entry_time=pd.Timestamp(frame.iloc[idx + 1]["timestamp"]),
+                        side=str(decision.get("direction")),
+                        setup_id=str(decision.get("setup_id") or "unknown"),
+                        strategy=str(decision.get("strategy") or "unknown"),
+                        regime=str(decision.get("regime") or row.get("regime") or "unknown"),
+                        confidence=f(decision.get("master_confidence")),
+                        risk_scale=f(decision.get("risk_scale"), 1.0),
+                        leverage=max(1.0, f(decision.get("lev"), 1.0)),
+                        atr=atr,
+                        decision_price=f(row.get("close")),
+                        stop_atr_mult=1.5,
+                        tp_r_target=2.5,
+                        max_hold_bars=192,
+                    )
+                )
+
+        if stoch_possible:
+            stoch = evaluate_stochrsi_opportunity(item=item, ta=item.get("ta_pack"))
+            if stoch.action == "enter":
+                candidates.append(
+                    Candidate(
+                        symbol=symbol,
+                        decision_idx=idx,
+                        entry_idx=idx + 1,
+                        entry_time=pd.Timestamp(frame.iloc[idx + 1]["timestamp"]),
+                        side=stoch.direction,
+                        setup_id=stoch.setup_id,
+                        strategy="stochrsi_opportunity",
+                        regime=str(row.get("regime") or "unknown"),
+                        confidence=float(stoch.confidence),
+                        risk_scale=float(stoch.risk_scale),
+                        leverage=1.0,
+                        atr=atr,
+                        decision_price=f(row.get("close")),
+                        stop_atr_mult=float(stoch.stop_atr_mult),
+                        tp_r_target=float(stoch.tp_r_target),
+                        max_hold_bars=max(1, int(float(stoch.max_hold_hours) * 4)),
+                    )
+                )
+
+    best: dict[tuple[pd.Timestamp, str], Candidate] = {}
+    for candidate in candidates:
+        key=(candidate.entry_time, candidate.symbol)
+        previous=best.get(key)
+        if previous is None or candidate.confidence > previous.confidence:
+            best[key]=candidate
+    return sorted(best.values(), key=lambda x: (x.entry_time, x.symbol, x.setup_id))
 
 
 def adverse_entry(raw: float, side: str, slip: float) -> float:
@@ -340,10 +426,11 @@ def adverse_exit(raw: float, side: str, slip: float) -> float:
 
 
 def find_exit(frame: pd.DataFrame, candidate: Candidate, entry_fill: float, slippage: float) -> tuple[pd.Timestamp, float, str, int, float, float]:
-    protection = calculate_dynamic_tp_sl(candidate.side, entry_fill, atr=candidate.atr)
-    stop = f(protection.get("stop_loss"))
-    target = f(protection.get("take_profit"))
-    max_end = min(len(frame) - 1, candidate.entry_idx + 192)
+    stop_distance = abs(float(candidate.atr)) * max(float(candidate.stop_atr_mult), 0.1)
+    target_distance = stop_distance * max(float(candidate.tp_r_target), 0.1)
+    stop = entry_fill - stop_distance if candidate.side == "long" else entry_fill + stop_distance
+    target = entry_fill + target_distance if candidate.side == "long" else entry_fill - target_distance
+    max_end = min(len(frame) - 1, candidate.entry_idx + max(1, int(candidate.max_hold_bars)))
     for idx in range(candidate.entry_idx, max_end + 1):
         row = frame.iloc[idx]
         hi, lo = f(row["high"]), f(row["low"])
@@ -488,7 +575,7 @@ def simulate(
             skipped["invalid_open"] += 1
             continue
         entry = adverse_entry(raw_open, cand.side, slip)
-        stop_distance = max(cand.atr * 1.5, entry * 0.001)
+        stop_distance = max(cand.atr * max(cand.stop_atr_mult, 0.1), entry * 0.001)
         stop_pct = stop_distance / entry
         effective_scale = cand.risk_scale * risk_multiplier
         risk_budget = equity * 0.0025 * effective_scale
@@ -630,10 +717,11 @@ def main() -> int:
         "symbol_count": len(frames),
         "candidate_count": len(candidates),
         "methodology": {
-            "decision_engine": "decision.official_pipeline.process_symbol_decision",
+            "decision_engine": "decision.official_pipeline.process_symbol_decision + independent StochRSI90 lane",
             "edge_gate": "research override edge_validated=True to measure setup edge; production strict gate unchanged",
             "ml_direction_authority": "disabled",
             "meta_quality": "not enforced because no calibrated historical meta model is available",
+            "stochrsi_parallel": "independent candidate authority; does not vote inside primary router",
             "entry": "next 15m open after closed-candle decision",
             "max_open_positions": int((cfg.get("trade_parameters") or {}).get("max_open_positions", 2)),
             "trade_cooldown_min": int((cfg.get("trade_parameters") or {}).get("trade_cooldown_min", 39)),

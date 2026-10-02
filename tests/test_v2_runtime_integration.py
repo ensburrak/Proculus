@@ -19,6 +19,7 @@ def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:
         "edge_validated": edge_validated,
         "ta_pack": {
             "base_decision": "long",
+            "price": 109.35,
             "rsi": 56.0,
             "adx": 28.0,
             "atr_ratio": 0.012,
@@ -29,6 +30,7 @@ def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:
                 "ema_fast": 108.0,
                 "ema_slow": 105.0,
                 "macd_hist": 0.30,
+                "adx": 26.0,
                 "recent_closes": [106.0, 107.0, 108.0, 109.0, 110.0],
                 "recent_lows": [105.5, 106.5, 107.5, 108.5, 109.2],
                 "recent_highs": [106.5, 107.5, 108.5, 109.5, 110.5],
@@ -37,6 +39,7 @@ def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:
                 "ema_fast": 109.0,
                 "ema_slow": 107.0,
                 "macd_hist": 0.10,
+                "adx": 24.0,
                 "recent_closes": [107.2, 108.0, 108.5, 109.0, 109.5],
                 "recent_lows": [106.8, 107.5, 108.0, 108.4, 108.9],
                 "recent_highs": [107.5, 108.4, 108.9, 109.4, 109.8],

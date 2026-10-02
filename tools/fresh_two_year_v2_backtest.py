@@ -23,6 +23,8 @@ from decision.stochrsi_opportunity import evaluate_stochrsi_opportunity
 
 OUT_DIR = ROOT / "scratch" / "fresh_proculus_two_year"
 
+from tools.backtest_setup_promotion import evaluate_setup_promotions, promoted_setup_ids
+
 
 @dataclass
 class Candidate:
@@ -821,6 +823,47 @@ def main() -> int:
             flush=True,
         )
 
+    promotion_reference = "slippage_15bps"
+    development_reference = period_scenarios["development"][promotion_reference]
+    promotion_decisions = evaluate_setup_promotions(
+        development_reference.get("by_setup"),
+        min_trades=100,
+        min_profit_factor=1.15,
+        min_expectancy_r=0.05,
+    )
+    promoted_ids = promoted_setup_ids(promotion_decisions)
+    promoted_oos_candidates = [
+        candidate for candidate in oos_candidates
+        if candidate.setup_id in promoted_ids
+    ]
+    promoted_oos: dict[str, dict[str, Any]] = {}
+    promoted_oos_acceptance: dict[str, dict[str, Any]] = {}
+    for raw in str(args.slippage_bps).split(","):
+        bps = float(raw.strip())
+        name = f"slippage_{int(bps)}bps"
+        promoted_oos[name] = simulate(
+            candidates=promoted_oos_candidates,
+            frames=frames,
+            initial_balance=args.initial_balance,
+            fee_bps=args.fee_bps,
+            slippage_bps=bps,
+            cfg=cfg,
+        )
+        promoted_oos_acceptance[name] = acceptance_flags(promoted_oos[name])
+        print(
+            "FRESH_BACKTEST_PROMOTED_OOS="
+            + json.dumps(
+                {
+                    "scenario": name,
+                    "promoted_setup_ids": sorted(promoted_ids),
+                    **compact_stats(promoted_oos[name]),
+                    "acceptance": promoted_oos_acceptance[name],
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+
     report = {
         "schema": "proculus-fresh-v2-two-year-oos-v2",
         "previous_backtests_used": False,
@@ -848,14 +891,30 @@ def main() -> int:
             "lookahead": "1h/4h values become available only after higher-timeframe candle close",
             "validation": (
                 f"first ~{args.days - args.holdout_days} days are development; "
-                f"last {args.holdout_days} days are untouched OOS holdout; "
+                f"last {args.holdout_days} days are a retrospective temporal holdout; "
                 f"{args.embargo_hours}h embargo prevents development trades from leaking into holdout"
             ),
-            "oos_acceptance": "PF>=1.15, expectancy>=0.05R, maxDD<=20%, >=100 closed trades",
+            "oos_acceptance": "retrospective temporal holdout gate: PF>=1.15, expectancy>=0.05R, maxDD<=20%, >=100 closed trades; live promotion still requires walk-forward + forward demo",
         },
         "scenarios": scenarios,
         "period_scenarios": period_scenarios,
         "oos_acceptance": acceptance,
+        "setup_promotion": {
+            "selection_period": "development",
+            "selection_scenario": promotion_reference,
+            "thresholds": {
+                "min_trades": 100,
+                "min_profit_factor": 1.15,
+                "min_expectancy_r": 0.05,
+            },
+            "decisions": {
+                setup_id: decision.to_dict()
+                for setup_id, decision in promotion_decisions.items()
+            },
+            "promoted_setup_ids": sorted(promoted_ids),
+        },
+        "promoted_oos": promoted_oos,
+        "promoted_oos_acceptance": promoted_oos_acceptance,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -871,6 +930,11 @@ def main() -> int:
                 "development": {k: compact_stats(v) for k, v in period_scenarios["development"].items()},
                 "oos_holdout": {k: compact_stats(v) for k, v in period_scenarios["oos_holdout"].items()},
                 "oos_acceptance": acceptance,
+                "promoted_setup_ids": sorted(promoted_ids),
+                "promoted_oos": {
+                    k: compact_stats(v) for k, v in promoted_oos.items()
+                },
+                "promoted_oos_acceptance": promoted_oos_acceptance,
             },
             ensure_ascii=False,
         ),

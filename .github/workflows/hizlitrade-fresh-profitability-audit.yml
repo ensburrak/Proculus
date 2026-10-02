@@ -15,6 +15,9 @@ permissions:
 
 jobs:
   audit:
+    concurrency:
+      group: hizlitrade-profitability-${{ github.ref }}-${{ matrix.hours }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 50
     strategy:

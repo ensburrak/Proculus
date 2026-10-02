@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import hashlib
 import json
 import math
 import statistics
@@ -118,6 +119,39 @@ def parse_json_list(value: Any) -> list[Any]:
     return []
 
 
+def _cache_path(cache_dir: Path | None, namespace: str, key: str) -> Path | None:
+    if cache_dir is None:
+        return None
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return cache_dir / namespace / f"{digest}.json"
+
+
+def _read_cache(cache_dir: Path | None, namespace: str, key: str) -> Any | None:
+    path = _cache_path(cache_dir, namespace, key)
+    if path is None or not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("key") != key:
+        return None
+    return payload.get("value")
+
+
+def _write_cache(cache_dir: Path | None, namespace: str, key: str, value: Any) -> None:
+    path = _cache_path(cache_dir, namespace, key)
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps({"key": key, "value": value}, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    tmp.replace(path)
+
+
 def gamma_market_for_slug(slug: str) -> dict[str, Any] | None:
     url = "https://gamma-api.polymarket.com/events?" + urllib.parse.urlencode({"slug": slug})
     data = fetch_json(url)
@@ -136,21 +170,40 @@ def gamma_markets_for_slugs(
     slugs: set[str],
     *,
     batch_size: int = 40,
+    cache_dir: Path | None = None,
+    workers: int = 12,
 ) -> dict[str, dict[str, Any]]:
-    """Fetch exact Gamma event slugs in bounded batches with safe fallback.
+    """Fetch exact Gamma market slugs with bounded concurrency and settled cache.
 
-    Gamma accepts repeated event slug filters. Up/Down contracts use matching
-    event/market slugs, so batching avoids thousands of one-request-per-slot
-    lookups while preserving exact-slug matching. Any incomplete batch falls
-    back only for its missing slugs.
+    Only markets that are already closed and have a final binary winner are
+    persisted. That makes cached Gamma rows immutable research evidence rather
+    than a stale snapshot of a still-live market.
     """
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
+    if workers <= 0:
+        raise ValueError("workers must be positive")
+
     targets = tuple(sorted({slug for slug in slugs if slug}))
     found: dict[str, dict[str, Any]] = {}
 
-    for offset in range(0, len(targets), batch_size):
-        batch = targets[offset : offset + batch_size]
+    for slug in targets:
+        cached = _read_cache(cache_dir, "gamma", slug)
+        if (
+            isinstance(cached, dict)
+            and str(cached.get("slug") or "") == slug
+            and bool(cached.get("closed"))
+            and settled_winner(cached) is not None
+        ):
+            found[slug] = cached
+
+    remaining = tuple(slug for slug in targets if slug not in found)
+    batches = [
+        remaining[offset : offset + batch_size]
+        for offset in range(0, len(remaining), batch_size)
+    ]
+
+    def fetch_batch(batch: tuple[str, ...]) -> dict[str, dict[str, Any]]:
         params: list[tuple[str, str]] = [("slug", slug) for slug in batch]
         params.append(("limit", str(max(len(batch), 1))))
         url = "https://gamma-api.polymarket.com/events?" + urllib.parse.urlencode(params)
@@ -158,8 +211,9 @@ def gamma_markets_for_slugs(
             data = fetch_json(url)
         except Exception:
             data = []
-
+        batch_found: dict[str, dict[str, Any]] = {}
         if isinstance(data, list):
+            batch_set = set(batch)
             for event in data:
                 if not isinstance(event, dict):
                     continue
@@ -170,13 +224,22 @@ def gamma_markets_for_slugs(
                     if not isinstance(market, dict):
                         continue
                     slug = str(market.get("slug") or "")
-                    if slug in slugs:
-                        found[slug] = market
+                    if slug in batch_set:
+                        batch_found[slug] = market
+        return batch_found
 
-        missing = [slug for slug in batch if slug not in found]
-        if not missing:
-            continue
-        with ThreadPoolExecutor(max_workers=min(8, len(missing))) as pool:
+    if batches:
+        with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
+            futures = {pool.submit(fetch_batch, batch): batch for batch in batches}
+            for future in as_completed(futures):
+                try:
+                    found.update(future.result())
+                except Exception:
+                    continue
+
+    missing = [slug for slug in remaining if slug not in found]
+    if missing:
+        with ThreadPoolExecutor(max_workers=min(workers, len(missing))) as pool:
             futures = {
                 pool.submit(gamma_market_for_slug, slug): slug
                 for slug in missing
@@ -190,8 +253,10 @@ def gamma_markets_for_slugs(
                 if market is not None:
                     found[slug] = market
 
+    for slug, market in found.items():
+        if bool(market.get("closed")) and settled_winner(market) is not None:
+            _write_cache(cache_dir, "gamma", slug, market)
     return found
-
 
 def settled_winner(market: dict[str, Any]) -> str | None:
     outcomes = [str(x).strip().lower() for x in parse_json_list(market.get("outcomes"))]
@@ -241,23 +306,46 @@ def batch_instrument_histories(
     start_ts: int,
     end_ts: int,
     batch_size: int = 20,
+    cache_dir: Path | None = None,
+    workers: int = 12,
 ) -> dict[str, list[tuple[int, float]]]:
-    """Fetch CLOB price history in documented bounded batches.
+    """Fetch CLOB histories in parallel batches with immutable token caching.
 
-    Missing or malformed rows are never synthesized. If a batch is incomplete,
-    only its missing token IDs fall back to the single-token endpoint.
+    Callers provide token IDs from already-settled markets, so a non-empty
+    historical token series is immutable and safe to reuse across wider audits.
+    Missing or malformed rows are never synthesized.
     """
     if batch_size <= 0 or batch_size > 20:
         raise ValueError("batch_size must be between 1 and 20")
     if end_ts <= start_ts:
         raise ValueError("end_ts must be greater than start_ts")
+    if workers <= 0:
+        raise ValueError("workers must be positive")
 
     targets = tuple(sorted({token for token in instruments if token}))
     found: dict[str, list[tuple[int, float]]] = {}
+
+    for token in targets:
+        cached = _read_cache(cache_dir, "clob", token)
+        if isinstance(cached, list):
+            points = _history_points(
+                [
+                    {"t": row[0], "p": row[1]}
+                    for row in cached
+                    if isinstance(row, list | tuple) and len(row) == 2
+                ]
+            )
+            if points:
+                found[token] = points
+
+    remaining = tuple(token for token in targets if token not in found)
+    batches = [
+        remaining[offset : offset + batch_size]
+        for offset in range(0, len(remaining), batch_size)
+    ]
     url = "https://clob.polymarket.com/batch-prices-history"
 
-    for offset in range(0, len(targets), batch_size):
-        batch = targets[offset : offset + batch_size]
+    def fetch_batch(batch: tuple[str, ...]) -> dict[str, list[tuple[int, float]]]:
         try:
             payload = post_json(
                 url,
@@ -270,18 +358,27 @@ def batch_instrument_histories(
             )
         except Exception:
             payload = {}
-
         history = payload.get("history") if isinstance(payload, dict) else None
+        batch_found: dict[str, list[tuple[int, float]]] = {}
         if isinstance(history, dict):
             for token in batch:
                 points = _history_points(history.get(token))
                 if points:
-                    found[token] = points
+                    batch_found[token] = points
+        return batch_found
 
-        missing = [token for token in batch if token not in found]
-        if not missing:
-            continue
-        with ThreadPoolExecutor(max_workers=min(8, len(missing))) as pool:
+    if batches:
+        with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
+            futures = {pool.submit(fetch_batch, batch): batch for batch in batches}
+            for future in as_completed(futures):
+                try:
+                    found.update(future.result())
+                except Exception:
+                    continue
+
+    missing = [token for token in remaining if token not in found]
+    if missing:
+        with ThreadPoolExecutor(max_workers=min(workers, len(missing))) as pool:
             futures = {
                 pool.submit(instrument_history, token): token
                 for token in missing
@@ -295,8 +392,10 @@ def batch_instrument_histories(
                 if points:
                     found[token] = points
 
+    for token, points in found.items():
+        if points:
+            _write_cache(cache_dir, "clob", token, [[ts, price] for ts, price in points])
     return found
-
 
 def okx_spot_history(inst_id: str, cutoff_s: int) -> list[tuple[int, float]]:
     rows: dict[int, float] = {}
@@ -947,7 +1046,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--hours", type=int, default=12)
     ap.add_argument("--output", default="fresh_hizlitrade_backtest.json")
+    ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--cache-dir", default=".cache/hizlitrade-audit")
     args = ap.parse_args()
+    if args.workers <= 0:
+        raise SystemExit("--workers must be positive")
+    cache_dir = Path(args.cache_dir)
 
     now = int(time.time())
     slugs: list[tuple[str, str, int, int]] = []
@@ -966,7 +1070,11 @@ def main() -> None:
         f"{asset}-updown-{minutes}m-{start}": (asset, symbol, minutes, start)
         for asset, symbol, minutes, start in slugs
     }
-    gamma_markets = gamma_markets_for_slugs(set(keys_by_slug))
+    gamma_markets = gamma_markets_for_slugs(
+        set(keys_by_slug),
+        cache_dir=cache_dir,
+        workers=args.workers,
+    )
     for slug, key in keys_by_slug.items():
         market = gamma_markets.get(slug)
         if market is None:
@@ -1001,6 +1109,8 @@ def main() -> None:
         history_tokens,
         start_ts=cutoff,
         end_ts=now,
+        cache_dir=cache_dir,
+        workers=args.workers,
     )
 
     def build_market(item: tuple[tuple[str, str, int, int], dict[str, Any]]) -> Market | None:
@@ -1110,6 +1220,8 @@ def main() -> None:
             "prediction_history_tokens_requested": len(history_tokens),
             "prediction_history_tokens_loaded": len(prediction_histories),
             "candidate_signals": len(candidates),
+            "audit_workers": args.workers,
+            "cache_dir": str(cache_dir),
         },
         "strategy_parameters": {
             "fee_rate": FEE_RATE,

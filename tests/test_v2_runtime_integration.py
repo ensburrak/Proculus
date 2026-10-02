@@ -279,3 +279,38 @@ def test_combined_backtest_only_arbitrates_at_final_same_symbol_boundary() -> No
     selected = collapse_independent_candidates([v2, stoch])
 
     assert selected == [stoch]
+
+
+
+def test_cross_sectional_ranker_keeps_only_top_confidence_entries() -> None:
+    from decision.cross_sectional_ranker import rank_enter_decisions
+
+    decisions = {
+        "BTC/USDT": {
+            "action": "enter",
+            "direction": "long",
+            "master_confidence": 0.91,
+            "risk_scale": 0.5,
+            "lev": 1,
+        },
+        "ETH/USDT": {
+            "action": "enter",
+            "direction": "long",
+            "master_confidence": 0.72,
+            "risk_scale": 0.5,
+            "lev": 1,
+        },
+        "SOL/USDT": {"action": "hold", "master_confidence": 0.99},
+    }
+
+    ranked = rank_enter_decisions(
+        decisions,
+        top_fraction=0.15,
+        min_candidates=2,
+    )
+
+    assert ranked["BTC/USDT"]["action"] == "enter"
+    assert ranked["ETH/USDT"]["action"] == "hold"
+    assert ranked["ETH/USDT"]["risk_scale"] == 0.0
+    assert "cross-sectional" in ranked["ETH/USDT"]["reason"]
+    assert ranked["SOL/USDT"]["action"] == "hold"

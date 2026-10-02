@@ -9,7 +9,7 @@ from .strategy_experts.range_revert import evaluate_range
 from .strategy_experts.trend import evaluate_trend
 
 
-def route_to_expert(*, regime: str, item: dict[str, Any], ta: dict[str, Any]) -> ExpertSignal | None:
+def route_to_expert(*, regime: str, item: dict[str, Any], ta: dict[str, Any], min_confidence_override: float | None = None) -> ExpertSignal | None:
     """Route one closed-candle market snapshot to exactly one regime expert.
 
     Direction belongs to deterministic experts. ML/LLM layers are not allowed
@@ -37,7 +37,13 @@ def route_to_expert(*, regime: str, item: dict[str, Any], ta: dict[str, Any]) ->
         return None
     if signal.direction not in set(policy.get("directions") or set()):
         return None
-    if float(signal.confidence) < float(policy.get("min_confidence") or 1.0):
+    threshold=float(policy.get("min_confidence") or 1.0)
+    if min_confidence_override is not None:
+        try:
+            threshold=max(0.0,min(1.0,float(min_confidence_override)))
+        except (TypeError,ValueError):
+            threshold=float(policy.get("min_confidence") or 1.0)
+    if float(signal.confidence) < threshold:
         return None
     return signal
 

@@ -131,10 +131,12 @@ def select_strategy(
         }
 
     result = {
+        "action": "watch",
         "strategy": "mean_reversion",
         "confidence": 0.5,
         "direction_bias": "neutral",
-        "reasoning": ""
+        "risk_size_cap": 0.8,
+        "reasoning": "",
     }
     
     # Fiyat verisini numpy array'e çevir
@@ -148,89 +150,121 @@ def select_strategy(
     # =========================================================================
     # 1. Rejim Bazlı Strateji Seçimi (Birincil)
     # =========================================================================
-    if regime:
-        regime = regime.upper()
-        confidence = regime_confidence or 0.5
-        
-        if regime in ("BULL", "STRONG_BULL"):
-            result["strategy"] = "trend"
-            result["direction_bias"] = "long"
-            result["confidence"] = min(0.85, 0.6 + confidence * 0.3)
-            reasons.append(f"{regime} regime → TREND-LONG")
-            
-        elif regime in ("BEAR", "STRONG_BEAR"):
-            result["strategy"] = "trend"
-            result["direction_bias"] = "short"
-            result["confidence"] = min(0.85, 0.6 + confidence * 0.3)
-            reasons.append(f"{regime} regime → TREND-SHORT")
-            
-        elif regime in ("SIDEWAYS", "RANGE"):
-            result["strategy"] = "mean_reversion"
-            result["direction_bias"] = "neutral"
-            result["confidence"] = 0.55
-            reasons.append(f"{regime} regime → MEAN_REVERSION")
-            
-        elif regime in ("VOLATILE", "CRISIS", "TRANSITION", "COMPRESSION", "SHOCK", "CONFLICT"):
-            result["strategy"] = "defensive"
-            result["direction_bias"] = "neutral"
-            result["confidence"] = 0.7
-            reasons.append(f"{regime} regime → DEFENSIVE")
-    
+    normalized_regime = str(regime or "UNKNOWN").upper()
+    confidence = float(regime_confidence or 0.5)
+
+    if normalized_regime in ("BULL", "STRONG_BULL", "WEAK_BULL"):
+        result.update(
+            action="trade",
+            strategy="trend",
+            direction_bias="long",
+            confidence=min(0.85, 0.60 + confidence * 0.30),
+            risk_size_cap=1.0,
+        )
+        reasons.append(f"{normalized_regime} regime -> TREND-LONG")
+    elif normalized_regime in ("BEAR", "STRONG_BEAR", "WEAK_BEAR"):
+        result.update(
+            action="trade",
+            strategy="trend",
+            direction_bias="short",
+            confidence=min(0.85, 0.60 + confidence * 0.30),
+            risk_size_cap=1.0,
+        )
+        reasons.append(f"{normalized_regime} regime -> TREND-SHORT")
+    elif normalized_regime in ("SIDEWAYS", "RANGE", "RANGING"):
+        result.update(
+            action="trade",
+            strategy="mean_reversion",
+            direction_bias="neutral",
+            confidence=max(0.55, min(0.75, confidence)),
+            risk_size_cap=0.80,
+        )
+        reasons.append(f"{normalized_regime} regime -> MEAN_REVERSION")
+    elif normalized_regime in ("COMPRESSION", "SQUEEZE"):
+        result.update(
+            action="watch",
+            strategy="breakout",
+            direction_bias="neutral",
+            confidence=max(0.60, min(0.80, confidence)),
+            risk_size_cap=0.75,
+        )
+        reasons.append(f"{normalized_regime} regime -> WAIT_FOR_BREAKOUT_CONFIRMATION")
+    elif normalized_regime in ("TRANSITION", "EARLY_TREND"):
+        result.update(
+            action="no_trade",
+            strategy="confirmation",
+            direction_bias="neutral",
+            confidence=max(0.70, confidence),
+            risk_size_cap=0.0,
+        )
+        reasons.append(f"{normalized_regime} regime -> NO_TRADE_UNTIL_CONFIRMATION")
+    elif normalized_regime in ("VOLATILE", "CRISIS", "SHOCK", "CONFLICT", "UNKNOWN"):
+        result.update(
+            action="no_trade",
+            strategy="defensive",
+            direction_bias="neutral",
+            confidence=max(0.90, confidence),
+            risk_size_cap=0.0,
+        )
+        reasons.append(f"{normalized_regime} regime -> HARD_NO_TRADE")
+
     # =========================================================================
     # 2. Breakout Tespiti (Override)
     # =========================================================================
-    if prices_arr is not None and len(prices_arr) >= lookback:
+    breakout_allowed_regimes = {"SIDEWAYS", "RANGE", "RANGING", "COMPRESSION", "SQUEEZE"}
+    if (
+        prices_arr is not None
+        and len(prices_arr) >= lookback
+        and normalized_regime in breakout_allowed_regimes
+    ):
         breakout = detect_range_breakout(prices_arr, lookback)
-        
         if breakout:
+            result["action"] = "trade"
             result["strategy"] = "breakout"
             result["direction_bias"] = "long" if breakout == "breakout_up" else "short"
-            result["confidence"] = 0.75
-            reasons.append(f"Breakout detected: {breakout}")
+            result["confidence"] = min(0.80, max(float(result["confidence"]), 0.72))
+            result["risk_size_cap"] = min(float(result["risk_size_cap"]), 0.75)
+            reasons.append(f"Confirmed breakout: {breakout}")
     
     # =========================================================================
-    # 3. AI Konsensüsü Doğrulaması
+    # 3. AI / ML Quality Advisory — NEVER direction authority
     # =========================================================================
-    if ai_scores:
-        # Sadece aktif AI'ları kontrol et
-        active_scores = []
-        for model in ["chatgpt", "deepseek"]:
-            score = ai_scores.get(model)
-            if score is not None and isinstance(score, (int, float)):
-                active_scores.append(float(score))
-        
+    if ai_scores and result["action"] == "trade":
+        active_scores = [
+            float(score)
+            for score in (ai_scores.get("chatgpt"), ai_scores.get("deepseek"))
+            if isinstance(score, (int, float))
+        ]
         if active_scores:
             avg_ai = sum(active_scores) / len(active_scores)
-            
-            # AI yönü strateji yönüyle uyumlu mu?
-            if result["direction_bias"] == "long" and avg_ai < 0.45:
-                # AI long demiyor, güveni düşür
-                result["confidence"] *= 0.8
-                reasons.append(f"AI disagrees with long (AI={avg_ai:.2f})")
-            elif result["direction_bias"] == "short" and avg_ai > 0.55:
-                # AI short demiyor, güveni düşür
-                result["confidence"] *= 0.8
-                reasons.append(f"AI disagrees with short (AI={avg_ai:.2f})")
-            elif (result["direction_bias"] == "long" and avg_ai > 0.65) or \
-                 (result["direction_bias"] == "short" and avg_ai < 0.35):
-                # AI güçlü onay veriyor
-                result["confidence"] = min(0.90, result["confidence"] * 1.15)
-                reasons.append(f"AI confirms direction (AI={avg_ai:.2f})")
-    
+            conflict = (
+                (result["direction_bias"] == "long" and avg_ai < 0.35)
+                or (result["direction_bias"] == "short" and avg_ai > 0.65)
+            )
+            if conflict:
+                result["confidence"] *= 0.85
+                result["risk_size_cap"] = min(float(result["risk_size_cap"]), 0.75)
+                reasons.append(f"AI advisory conflict -> quality downscale (AI={avg_ai:.2f})")
+            else:
+                reasons.append(f"AI advisory recorded only (AI={avg_ai:.2f}); no direction boost")
+
     # =========================================================================
     # 4. Volatilite Kontrolü
     # =========================================================================
     if atr is not None and current_price is not None and current_price > 0:
         atr_pct = atr / current_price
         
-        if atr_pct > 0.05:  # >5% volatilite = çok yüksek
-            if result["strategy"] != "defensive":
-                result["strategy"] = "defensive"
-                result["confidence"] *= 0.7
-                reasons.append(f"Extreme volatility (ATR={atr_pct:.1%}) → DEFENSIVE")
-        elif atr_pct > 0.03:  # 3-5% orta-yüksek
-            result["confidence"] *= 0.9
-            reasons.append(f"High volatility (ATR={atr_pct:.1%})")
+        if atr_pct > 0.05:
+            result["action"] = "no_trade"
+            result["strategy"] = "defensive"
+            result["direction_bias"] = "neutral"
+            result["risk_size_cap"] = 0.0
+            result["confidence"] = max(float(result["confidence"]), 0.90)
+            reasons.append(f"Extreme volatility (ATR={atr_pct:.1%}) -> HARD_NO_TRADE")
+        elif atr_pct > 0.03 and result["action"] == "trade":
+            result["confidence"] *= 0.90
+            result["risk_size_cap"] = min(float(result["risk_size_cap"]), 0.75)
+            reasons.append(f"High volatility (ATR={atr_pct:.1%}) -> size cap")
     
     # =========================================================================
     # 5. Final
@@ -238,7 +272,15 @@ def select_strategy(
     result["confidence"] = round(max(0.3, min(0.95, result["confidence"])), 3)
     result["reasoning"] = " | ".join(reasons) if reasons else "Default"
     
-    logger.info(f"[META_STRATEGY] {result['strategy'].upper()} | Bias={result['direction_bias']} | Conf={result['confidence']:.2f} | {result['reasoning']}")
+    logger.info(
+        "[META_STRATEGY] action=%s strategy=%s bias=%s conf=%.2f size_cap=%.2f | %s",
+        result["action"],
+        str(result["strategy"]).upper(),
+        result["direction_bias"],
+        result["confidence"],
+        float(result["risk_size_cap"]),
+        result["reasoning"],
+    )
     
     return result
 
@@ -263,16 +305,22 @@ def get_strategy_multipliers(strategy: str) -> Dict[str, float]:
             "max_holding_time": 0.5,  # Daha kısa tutma
         },
         "breakout": {
-            "position_size": 1.2,  # Büyük pozisyon
-            "stop_loss_distance": 1.2,  # Geniş stop
-            "take_profit_distance": 1.5,  # Uzak TP
-            "max_holding_time": 1.2,
+            "position_size": 0.75,
+            "stop_loss_distance": 1.0,
+            "take_profit_distance": 1.25,
+            "max_holding_time": 1.0,
+        },
+        "confirmation": {
+            "position_size": 0.0,
+            "stop_loss_distance": 1.0,
+            "take_profit_distance": 1.0,
+            "max_holding_time": 0.5,
         },
         "defensive": {
-            "position_size": 0.5,  # Yarı pozisyon
-            "stop_loss_distance": 0.6,  # Çok sıkı stop
-            "take_profit_distance": 0.5,  # Yakın TP
-            "max_holding_time": 0.3,  # Kısa tutma
+            "position_size": 0.0,
+            "stop_loss_distance": 1.0,
+            "take_profit_distance": 1.0,
+            "max_holding_time": 0.3,
         },
     }
     

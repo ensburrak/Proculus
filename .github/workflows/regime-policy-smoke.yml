@@ -1,0 +1,35 @@
+name: Proculus V2 Runtime Smoke
+
+on:
+  pull_request:
+    paths:
+      - "meta_strategy_selector.py"
+      - "config.json"
+      - "controller_async.py"
+      - "main_bot_async.py"
+      - "risk_manager.py"
+      - "core/**"
+      - "decision/**"
+      - "runtime/**"
+      - "risk/**"
+      - "tests/test_meta_strategy_selector_regime_adaptive.py"
+      - "tests/test_v2_runtime_integration.py"
+      - ".github/workflows/regime-policy-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proculus-v2-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest pytest-asyncio numpy pandas ccxt
+      - name: Run Proculus V2 runtime tests
+        run: python -m pytest -q tests/test_meta_strategy_selector_regime_adaptive.py tests/test_v2_runtime_integration.py

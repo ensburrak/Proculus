@@ -402,3 +402,57 @@ Yapılan kontroller:
 - `.env`, `.env.local`, `secrets.enc` ve `secrets/*` içerikleri güvenlik nedeniyle rapora alınmadı.
 - Log, model, parquet, sqlite, zip, pt, pkl gibi artefaktlar dosya grubu ve runtime rolü düzeyinde değerlendirildi; içerik bazlı model performans iddiası yapılmadı.
 - Bu rapor statik analizdir. Profitability, drawdown, live readiness veya production safety iddiası değildir.
+
+
+---
+
+## 2026-10-02 — Pipeline V2 Runtime Tamamlama Notu
+
+Bu repo daha önce `core/`, `decision/`, `runtime/` ve `risk/` paketlerine referans veren facade dosyaları içeriyor ancak ilgili paket ağacının önemli kısmını taşımıyordu. Bu durum 2026-10-02 çalışmasında giderildi.
+
+### Artık mevcut ve bağlı olan resmi yol
+
+```text
+main_bot_async.py
+  -> runtime.entrypoint
+  -> runtime.runtime_main_service
+  -> runtime.runtime_loop_services
+  -> runtime.runtime_analysis_services
+  -> core.decision_pipeline
+  -> controller_async
+  -> decision.controller_batch_service
+  -> decision.official_pipeline
+  -> decision.regime_policy
+  -> decision.strategy_router
+  -> decision.mtf_trend_gate
+  -> decision.meta_quality_gate
+  -> runtime.execution_bridge
+```
+
+Yeni V2 karar sözleşmesinin temel ilkeleri:
+
+- Yön otoritesi deterministic strategy expert katmanındadır.
+- AI/ML yön seçemez veya yönü çeviremez; yalnız kalibre edilmiş trade-quality filtresi olarak veto/downsize yetkisi alabilir.
+- Trend setup'ı 4H yön, 1H yapı ve 5m/15m pullback-resumption doğrulaması ister.
+- Range rejimi ayrı mean-reversion mantığı kullanır; Stoch/RSI extremeleri trend oyu gibi sayılmaz.
+- Compression yalnız doğrulanmış breakout sonrasında aday üretir.
+- Transition, Shock, Conflict ve Unknown fail-closed/no-trade davranır.
+- Strict edge evidence açıkken edge kanıtı olmayan setup emir üretmez.
+- Adaptive sizing yalnız küçültme/cap uygular; hiçbir katman pozisyon büyütmez.
+- Paper/sim/demo/dry-run execution simüle edilir ve exchange'e emir göndermez.
+- Live emir yolu hem Pipeline V2 hem authority config açıkça izin vermedikçe fail-closed kalır.
+
+### Doğrulama
+
+`Proculus V2 Runtime Smoke` workflow'u şu sözleşmeleri doğrular:
+
+- `controller_async` üzerinden gerçek V2 karar yolu
+- Bull MTF setup -> regime-compatible ENTER
+- Strict edge evidence eksikliği -> HOLD
+- Shock rejimi -> hard no-trade
+- Paper execution -> gerçek `create_order` çağrısı yok
+- Legacy facade importları: `main_bot_async`, `risk_manager`, `controller_async`
+
+Son doğrulama HEAD `40e7c9cc4c0d5948b386d500d1e72c753e0159b4` üzerinde başarıyla tamamlandı.
+
+Bu doğrulama runtime bağlantısının çalıştığını gösterir; profitability veya live kârlılık garantisi değildir.

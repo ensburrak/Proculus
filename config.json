@@ -505,7 +505,15 @@
       "input_max_age_seconds": 1800,
       "future_clock_skew_seconds": 300,
       "drift_report_max_age_hours": 24
-    }
+    },
+    "model_roles": {
+      "xgboost": "trade_quality_meta_filter_shadow",
+      "transformer": "shadow_research",
+      "lightgbm": "shadow_research",
+      "ppo_rl": "shadow_research"
+    },
+    "directional_model_authority": false,
+    "meta_filter_activation_requires_validated_edge": true
   },
   "rl_in_ai": false,
   "deepseek_model": "deepseek-v4-flash",
@@ -971,6 +979,33 @@
       ],
       "progress_file": "state/learning_probe_progress.json",
       "allow_sample_collection_without_edge": true
+    },
+    "meta_quality_gate": {
+      "enabled": true,
+      "role": "trade_quality_meta_filter",
+      "direction_authority": false,
+      "block_below": 0.45,
+      "reduce_below": 0.6,
+      "reduced_size_scale": 0.5,
+      "enforce_live": false,
+      "require_calibrated_model": true
+    },
+    "adaptive_position_sizing": {
+      "enabled": true,
+      "amplification_allowed": false,
+      "confidence_floor": 0.6,
+      "full_size_confidence": 0.85,
+      "confidence_floor_size_scale": 0.5,
+      "regime_size_caps": {
+        "bull": 1,
+        "bear": 1,
+        "range": 0.8,
+        "compression": 0.75,
+        "transition": 0.6,
+        "shock": 0,
+        "conflict": 0,
+        "unknown": 0
+      }
     }
   },
   "max_concurrent_positions": 0,

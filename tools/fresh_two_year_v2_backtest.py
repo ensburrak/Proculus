@@ -723,6 +723,16 @@ def _development_exit_search(
     initial_balance: float,
     fee_bps: float,
 ) -> dict[str, Any]:
+    development_trend = [
+        candidate
+        for candidate in development_candidates
+        if candidate.strategy == "trend_pullback_resumption"
+    ]
+    oos_trend = [
+        candidate
+        for candidate in oos_candidates
+        if candidate.strategy == "trend_pullback_resumption"
+    ]
     grid = [
         {"stop_atr_mult": 1.0, "tp_r_target": 2.0, "max_hold_bars": 96},
         {"stop_atr_mult": 1.0, "tp_r_target": 2.5, "max_hold_bars": 128},
@@ -737,7 +747,7 @@ def _development_exit_search(
     passing: list[dict[str, Any]] = []
 
     for params in grid:
-        variant = _trend_exit_variant(development_candidates, **params)
+        variant = _trend_exit_variant(development_trend, **params)
         dev_5 = simulate(
             candidates=variant,
             frames=frames,
@@ -795,7 +805,7 @@ def _development_exit_search(
             key: passing[0][key]
             for key in ("stop_atr_mult", "tp_r_target", "max_hold_bars")
         }
-        locked_oos = _trend_exit_variant(oos_candidates, **selected)
+        locked_oos = _trend_exit_variant(oos_trend, **selected)
         for bps in (5.0, 15.0):
             name = f"slippage_{int(bps)}bps"
             payload = simulate(
@@ -812,7 +822,7 @@ def _development_exit_search(
             }
 
     return {
-        "scope": "trend_pullback_resumption exits only; entries unchanged",
+        "scope": "trend_pullback_resumption only; non-trend lanes excluded from selection and confirmation",
         "selection_data": "development period only",
         "holdout_policy": "OOS is evaluated only if a variant passes all development robustness checks",
         "grid": trials,

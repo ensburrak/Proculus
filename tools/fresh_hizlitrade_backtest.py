@@ -83,6 +83,28 @@ def fetch_json(url: str, attempts: int = 5) -> Any:
     raise RuntimeError(f"request failed after {attempts} attempts: {url}: {last}")
 
 
+def post_json(url: str, payload: dict[str, Any], attempts: int = 5) -> Any:
+    last: Exception | None = None
+    body = json.dumps(payload).encode("utf-8")
+    for attempt in range(attempts):
+        try:
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "hizlitrade-fresh-backtest/1.0",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            last = exc
+            time.sleep(0.25 * (attempt + 1))
+    raise RuntimeError(f"request failed after {attempts} attempts: {url}: {last}")
+
+
 def parse_json_list(value: Any) -> list[Any]:
     if isinstance(value, list):
         return value
@@ -189,10 +211,7 @@ def settled_winner(market: dict[str, Any]) -> str | None:
     return None
 
 
-def instrument_history(instrument: str) -> list[tuple[int, float]]:
-    params = urllib.parse.urlencode({"market": instrument, "interval": "max", "fidelity": 1})
-    data = fetch_json("https://clob.polymarket.com/prices-history?" + params)
-    rows = data.get("history") if isinstance(data, dict) else None
+def _history_points(rows: object) -> list[tuple[int, float]]:
     out: list[tuple[int, float]] = []
     if isinstance(rows, list):
         for row in rows:
@@ -206,6 +225,76 @@ def instrument_history(instrument: str) -> list[tuple[int, float]]:
             if 0 < price < 1:
                 out.append((ts, price))
     return sorted(dict(out).items())
+
+
+def instrument_history(instrument: str) -> list[tuple[int, float]]:
+    params = urllib.parse.urlencode({"market": instrument, "interval": "max", "fidelity": 1})
+    data = fetch_json("https://clob.polymarket.com/prices-history?" + params)
+    rows = data.get("history") if isinstance(data, dict) else None
+    return _history_points(rows)
+
+
+def batch_instrument_histories(
+    instruments: set[str],
+    *,
+    start_ts: int,
+    end_ts: int,
+    batch_size: int = 20,
+) -> dict[str, list[tuple[int, float]]]:
+    """Fetch CLOB price history in documented bounded batches.
+
+    Missing or malformed rows are never synthesized. If a batch is incomplete,
+    only its missing token IDs fall back to the single-token endpoint.
+    """
+    if batch_size <= 0 or batch_size > 20:
+        raise ValueError("batch_size must be between 1 and 20")
+    if end_ts <= start_ts:
+        raise ValueError("end_ts must be greater than start_ts")
+
+    targets = tuple(sorted({token for token in instruments if token}))
+    found: dict[str, list[tuple[int, float]]] = {}
+    url = "https://clob.polymarket.com/batch-prices-history"
+
+    for offset in range(0, len(targets), batch_size):
+        batch = targets[offset : offset + batch_size]
+        try:
+            payload = post_json(
+                url,
+                {
+                    "markets": list(batch),
+                    "start_ts": start_ts,
+                    "end_ts": end_ts,
+                    "fidelity": 1,
+                },
+            )
+        except Exception:
+            payload = {}
+
+        history = payload.get("history") if isinstance(payload, dict) else None
+        if isinstance(history, dict):
+            for token in batch:
+                points = _history_points(history.get(token))
+                if points:
+                    found[token] = points
+
+        missing = [token for token in batch if token not in found]
+        if not missing:
+            continue
+        with ThreadPoolExecutor(max_workers=min(8, len(missing))) as pool:
+            futures = {
+                pool.submit(instrument_history, token): token
+                for token in missing
+            }
+            for future in as_completed(futures):
+                token = futures[future]
+                try:
+                    points = future.result()
+                except Exception:
+                    continue
+                if points:
+                    found[token] = points
+
+    return found
 
 
 def okx_spot_history(inst_id: str, cutoff_s: int) -> list[tuple[int, float]]:
@@ -877,6 +966,17 @@ def main() -> None:
 
     markets: list[Market] = []
     history_failures: Counter[str] = Counter()
+    history_tokens = {
+        str(token)
+        for _key, row in discovered
+        for token in parse_json_list(row.get("clobTokenIds"))
+        if str(token)
+    }
+    prediction_histories = batch_instrument_histories(
+        history_tokens,
+        start_ts=cutoff,
+        end_ts=now,
+    )
 
     def build_market(item: tuple[tuple[str, str, int, int], dict[str, Any]]) -> Market | None:
         (asset, symbol, minutes, start), row = item
@@ -886,8 +986,6 @@ def main() -> None:
         winner = settled_winner(row)
         if winner is None:
             return None
-        yes_h = instrument_history(instruments[0])
-        no_h = instrument_history(instruments[1])
         try:
             volume = float(row.get("volume")) if row.get("volume") is not None else None
         except (TypeError, ValueError):
@@ -901,29 +999,23 @@ def main() -> None:
             winner=winner,
             yes_instrument=instruments[0],
             no_instrument=instruments[1],
-            yes_history=yes_h,
-            no_history=no_h,
+            yes_history=prediction_histories.get(instruments[0], []),
+            no_history=prediction_histories.get(instruments[1], []),
             volume=volume,
         )
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {pool.submit(build_market, item): item for item in discovered}
-        for future in as_completed(futures):
-            try:
-                market = future.result()
-            except Exception:
-                history_failures["request_error"] += 1
-                continue
-            if market is None:
-                history_failures["invalid_market"] += 1
-                continue
-            if not market.yes_history or not market.no_history:
-                history_failures["missing_price_history"] += 1
-                continue
-            if market.symbol not in spots:
-                history_failures["missing_spot_history"] += 1
-                continue
-            markets.append(market)
+    for item in discovered:
+        market = build_market(item)
+        if market is None:
+            history_failures["invalid_market"] += 1
+            continue
+        if not market.yes_history or not market.no_history:
+            history_failures["missing_price_history"] += 1
+            continue
+        if market.symbol not in spots:
+            history_failures["missing_spot_history"] += 1
+            continue
+        markets.append(market)
 
     candidates: list[Candidate] = []
     market_candidate_counts: dict[str, int] = {}
@@ -986,6 +1078,8 @@ def main() -> None:
             "requested_market_slots": len(slugs),
             "settled_markets_discovered": len(discovered),
             "markets_with_complete_history": len(markets),
+            "prediction_history_tokens_requested": len(history_tokens),
+            "prediction_history_tokens_loaded": len(prediction_histories),
             "candidate_signals": len(candidates),
         },
         "strategy_parameters": {

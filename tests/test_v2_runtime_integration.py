@@ -64,8 +64,21 @@ def test_controller_async_runs_real_v2_decision_path() -> None:
     assert 0.0 < decision["risk_scale"] <= 1.0
 
 
-def test_strict_edge_evidence_fails_closed() -> None:
+def test_paper_learning_probe_collects_edge_at_capped_size() -> None:
     result = asyncio.run(DecisionPipeline().decide_batch([_bull_item(edge_validated=False)]))
+    decision = result["BTC/USDT"]
+
+    assert decision["action"] == "enter"
+    assert 0.0 < decision["risk_scale"] <= 0.25
+    assert decision["lev"] == 1
+    assert decision["edge_contract"]["mode"] == "learning_probe"
+    assert decision["learning_probe"]["active"] is True
+
+
+def test_live_strict_edge_evidence_still_fails_closed() -> None:
+    item = _bull_item(edge_validated=False)
+    item["runtime_mode"] = "live"
+    result = asyncio.run(DecisionPipeline().decide_batch([item]))
     decision = result["BTC/USDT"]
 
     assert decision["action"] == "hold"

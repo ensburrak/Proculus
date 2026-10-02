@@ -304,11 +304,8 @@
     "requested_release": "v2",
     "required_strategy_oos_evidence_hash": "",
     "required_strategy_policy_hash": "",
-    "allowed_setup_ids": [
-      "liquidity_sweep.lower_reclaim.long.1h.v1",
-      "liquidity_sweep.upper_reject.short.1h.v1"
-    ],
-    "allowed_setup_ids_hash": "34304bb5762a93bd11caa7d028df0daf2a9e4cfb53a82e05e773861f0288bdea",
+    "allowed_setup_ids": [],
+    "allowed_setup_ids_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "allowed_runtime_modes": [
       "paper"
     ],

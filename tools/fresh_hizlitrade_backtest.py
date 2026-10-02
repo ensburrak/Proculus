@@ -109,6 +109,67 @@ def gamma_market_for_slug(slug: str) -> dict[str, Any] | None:
     return None
 
 
+def gamma_markets_for_slugs(
+    slugs: set[str],
+    *,
+    batch_size: int = 40,
+) -> dict[str, dict[str, Any]]:
+    """Fetch exact Gamma event slugs in bounded batches with safe fallback.
+
+    Gamma accepts repeated event slug filters. Up/Down contracts use matching
+    event/market slugs, so batching avoids thousands of one-request-per-slot
+    lookups while preserving exact-slug matching. Any incomplete batch falls
+    back only for its missing slugs.
+    """
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    targets = tuple(sorted({slug for slug in slugs if slug}))
+    found: dict[str, dict[str, Any]] = {}
+
+    for offset in range(0, len(targets), batch_size):
+        batch = targets[offset : offset + batch_size]
+        params: list[tuple[str, str]] = [("slug", slug) for slug in batch]
+        params.append(("limit", str(max(len(batch), 1))))
+        url = "https://gamma-api.polymarket.com/events?" + urllib.parse.urlencode(params)
+        try:
+            data = fetch_json(url)
+        except Exception:
+            data = []
+
+        if isinstance(data, list):
+            for event in data:
+                if not isinstance(event, dict):
+                    continue
+                markets = event.get("markets") or []
+                if not isinstance(markets, list):
+                    continue
+                for market in markets:
+                    if not isinstance(market, dict):
+                        continue
+                    slug = str(market.get("slug") or "")
+                    if slug in slugs:
+                        found[slug] = market
+
+        missing = [slug for slug in batch if slug not in found]
+        if not missing:
+            continue
+        with ThreadPoolExecutor(max_workers=min(8, len(missing))) as pool:
+            futures = {
+                pool.submit(gamma_market_for_slug, slug): slug
+                for slug in missing
+            }
+            for future in as_completed(futures):
+                slug = futures[future]
+                try:
+                    market = future.result()
+                except Exception:
+                    continue
+                if market is not None:
+                    found[slug] = market
+
+    return found
+
+
 def settled_winner(market: dict[str, Any]) -> str | None:
     outcomes = [str(x).strip().lower() for x in parse_json_list(market.get("outcomes"))]
     prices_raw = parse_json_list(market.get("outcomePrices"))
@@ -787,27 +848,21 @@ def main() -> None:
 
     discovered: list[tuple[tuple[str, str, int, int], dict[str, Any]]] = []
     discovery_failures: Counter[str] = Counter()
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {
-            pool.submit(gamma_market_for_slug, f"{asset}-updown-{minutes}m-{start}"):
-            (asset, symbol, minutes, start)
-            for asset, symbol, minutes, start in slugs
-        }
-        for future in as_completed(futures):
-            key = futures[future]
-            try:
-                market = future.result()
-            except Exception:
-                discovery_failures["request_error"] += 1
-                continue
-            if market is None:
-                discovery_failures["not_found"] += 1
-                continue
-            winner = settled_winner(market)
-            if winner is None or not bool(market.get("closed")):
-                discovery_failures["not_settled"] += 1
-                continue
-            discovered.append((key, market))
+    keys_by_slug = {
+        f"{asset}-updown-{minutes}m-{start}": (asset, symbol, minutes, start)
+        for asset, symbol, minutes, start in slugs
+    }
+    gamma_markets = gamma_markets_for_slugs(set(keys_by_slug))
+    for slug, key in keys_by_slug.items():
+        market = gamma_markets.get(slug)
+        if market is None:
+            discovery_failures["not_found"] += 1
+            continue
+        winner = settled_winner(market)
+        if winner is None or not bool(market.get("closed")):
+            discovery_failures["not_settled"] += 1
+            continue
+        discovered.append((key, market))
 
     # Fetch one hour of warmup beyond the requested horizon. Historical OKX
     # proxy bars are 60s, so a 300s runtime window is approximated with five

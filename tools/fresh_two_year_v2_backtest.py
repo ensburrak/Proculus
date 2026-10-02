@@ -327,7 +327,7 @@ def build_item(symbol: str, row: pd.Series, recent: pd.DataFrame) -> dict[str, A
         "symbol": symbol,
         "runtime_mode": "paper",
         "regime": str(row.get("regime")),
-        "edge_validated": True,
+        "edge_validated": False,
         "meta_model_calibrated": False,
         "ta_pack": ta,
         "mtf_features": mtf,
@@ -718,7 +718,7 @@ def main() -> int:
         "candidate_count": len(candidates),
         "methodology": {
             "decision_engine": "decision.official_pipeline.process_symbol_decision + independent StochRSI90 lane",
-            "edge_gate": "research override edge_validated=True to measure setup edge; production strict gate unchanged",
+            "edge_gate": "edge_validated=False; paper learning_probe_mode is the only cold-start path and caps size/leverage",
             "ml_direction_authority": "disabled",
             "meta_quality": "not enforced because no calibrated historical meta model is available",
             "stochrsi_parallel": "independent candidate authority; does not vote inside primary router",

@@ -975,7 +975,9 @@
         "transition_confirm.persistent_retest.long.15m.v2",
         "transition_confirm.persistent_retest.short.15m.v2",
         "technical_consensus.long.15m.v1",
-        "technical_consensus.short.15m.v1"
+        "technical_consensus.short.15m.v1",
+        "bull_trend.pullback.long.15m.v3",
+        "bear_trend.pullback.short.15m.v3"
       ],
       "progress_file": "state/learning_probe_progress.json",
       "allow_sample_collection_without_edge": true

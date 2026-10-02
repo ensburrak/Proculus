@@ -29,6 +29,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Restore immutable historical audit cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/hizlitrade-audit
+          key: hizlitrade-audit-v1-${{ runner.os }}-${{ github.sha }}-${{ matrix.hours }}h
+          restore-keys: |
+            hizlitrade-audit-v1-${{ runner.os }}-
       - name: Run fresh HIZLITRADE profitability audit
         env:
           PYTHONPATH: .

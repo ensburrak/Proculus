@@ -134,6 +134,8 @@ def main() -> int:
     report = build()
     OUTPUT.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps({
+        "valid": True,
+        "fail_closed": True,
         "passed": report["passed"],
         "status": "passed" if report["passed"] else "blocked",
         "blockers": report["blockers"],

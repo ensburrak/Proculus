@@ -91,3 +91,16 @@ def test_stochrsi_runtime_authority_is_mode_scoped() -> None:
     assert live["action"]=="enter"
     assert live["order_authorized"] is False
     assert live["execution_blocker"]=="stochrsi_mode_not_authorized"
+
+
+def test_probe_confidence_override_does_not_relax_default_policy() -> None:
+    item={
+        "regime":"range",
+        "ta_pack":{"price":100.0,"rsi":30.0,"stoch_k":20.0,"adx":14.0,"atr_ratio":0.01,"ema":{"fast":100.0,"slow":100.1}},
+        "mtf_features":{"15m":{"recent_closes":[100.4,100.2,99.9,99.7,99.8,100.0]}},
+    }
+    assert route_to_expert(regime="range",item=item,ta=item["ta_pack"]) is None
+    probe=route_to_expert(regime="range",item=item,ta=item["ta_pack"],min_confidence_override=0.55)
+    assert probe is not None
+    assert probe.confidence < get_regime_policy("range")["min_confidence"]
+    assert probe.setup_id=="range_revert.low_band_rejection.long.15m.v2"

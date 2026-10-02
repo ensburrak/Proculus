@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from types import SimpleNamespace
 
 import controller_async
@@ -204,3 +206,91 @@ def test_runtime_symbol_universe_applies_okx_swap_filters() -> None:
     }
     resolved = asyncio.run(resolve_runtime_symbols(DummyExchange(), cfg))
     assert resolved == ["BTC/USDT:USDT"]
+
+
+def _release_config(*, setup_id: str, allow_live: bool = True, valid_hash: bool = True) -> dict:
+    allowed = [setup_id]
+    allowed_hash = hashlib.sha256(
+        json.dumps(allowed, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    if not valid_hash:
+        allowed_hash = "0" * 64
+    return {
+        "pipeline_v2": {"allow_live_exchange_side_effects": True},
+        "ai_authority": {"allow_live_exchange_side_effects": True},
+        "strategy_release": {
+            "requested_release": "v2",
+            "required_strategy_oos_evidence_hash": "evidence-sha256",
+            "required_strategy_policy_hash": "policy-sha256",
+            "allowed_setup_ids": allowed,
+            "allowed_setup_ids_hash": allowed_hash,
+            "allowed_runtime_modes": ["live"],
+            "allow_live": allow_live,
+            "allow_testnet": False,
+        },
+    }
+
+
+def _live_execution_fixture() -> tuple[dict, dict]:
+    setup_id = "bull_trend.pullback.long.15m.v2"
+    item = {
+        "symbol": "BTC/USDT",
+        "runtime_mode": "live",
+        "order_size": 0.01,
+    }
+    decision = {
+        "action": "enter",
+        "direction": "long",
+        "setup_id": setup_id,
+        "risk_scale": 0.5,
+        "edge_contract": {"validated": True},
+    }
+    return item, decision
+
+
+def test_live_execution_release_disabled_fails_closed() -> None:
+    class DummyExchange:
+        async def create_order(self, *args, **kwargs):
+            raise AssertionError("release-disabled live mode must never submit")
+
+    item, decision = _live_execution_fixture()
+    cfg = _release_config(setup_id=decision["setup_id"], allow_live=False)
+    result = asyncio.run(execute_decision(DummyExchange(), item, decision, cfg))
+
+    assert result["status"] == "live_blocked_by_strategy_release"
+    assert result["order_sent"] is False
+    assert result["strategy_release"]["reason"] == "live_release_disabled"
+
+
+def test_live_execution_release_hash_mismatch_fails_closed() -> None:
+    class DummyExchange:
+        async def create_order(self, *args, **kwargs):
+            raise AssertionError("hash-mismatched release must never submit")
+
+    item, decision = _live_execution_fixture()
+    cfg = _release_config(setup_id=decision["setup_id"], valid_hash=False)
+    result = asyncio.run(execute_decision(DummyExchange(), item, decision, cfg))
+
+    assert result["status"] == "live_blocked_by_strategy_release"
+    assert result["order_sent"] is False
+    assert result["strategy_release"]["reason"] == "allowed_setup_ids_hash_mismatch"
+
+
+def test_live_execution_requires_complete_release_contract_before_submit() -> None:
+    class DummyExchange:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def create_order(self, *args, **kwargs):
+            self.calls.append((args, kwargs))
+            return {"id": "order-1"}
+
+    item, decision = _live_execution_fixture()
+    cfg = _release_config(setup_id=decision["setup_id"])
+    exchange = DummyExchange()
+    result = asyncio.run(execute_decision(exchange, item, decision, cfg))
+
+    assert result["status"] == "submitted"
+    assert result["order_sent"] is True
+    assert result["strategy_release"]["reason"] == "released"
+    assert len(exchange.calls) == 1

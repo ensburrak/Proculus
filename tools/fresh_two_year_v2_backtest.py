@@ -981,6 +981,13 @@ def _trend_entry_profile_passes(
     if vol_z_max is not None and vol_z > float(vol_z_max):
         return False
 
+    confidence_min = float(profile.get("confidence_min", 0.0))
+    if float(candidate.confidence) < confidence_min:
+        return False
+
+    structure_bars = int(profile.get("structure_break_bars", 0) or 0)
+    prior_structure = frame.iloc[max(0, idx - structure_bars):idx] if structure_bars > 0 else None
+
     reclaim = float(profile.get("reclaim_bps", 0.0)) / 10_000.0
     mode = str(profile.get("mode") or "touch")
     if candidate.side == "long":
@@ -991,6 +998,10 @@ def _trend_entry_profile_passes(
         touched = float(recent["low"].min()) <= fast
         reclaimed = close >= fast * (1.0 + reclaim)
         crossed = prev_close <= fast and reclaimed
+        if prior_structure is not None and not prior_structure.empty:
+            structure_ok = close > float(prior_structure["high"].max())
+        else:
+            structure_ok = True
     else:
         rsi_min = float(profile.get("short_rsi_min", 0.0))
         rsi_max = float(profile.get("short_rsi_max", 100.0))
@@ -999,7 +1010,13 @@ def _trend_entry_profile_passes(
         touched = float(recent["high"].max()) >= fast
         reclaimed = close <= fast * (1.0 - reclaim)
         crossed = prev_close >= fast and reclaimed
+        if prior_structure is not None and not prior_structure.empty:
+            structure_ok = close < float(prior_structure["low"].min())
+        else:
+            structure_ok = True
 
+    if not structure_ok:
+        return False
     if mode == "cross":
         return bool(crossed)
     return bool(touched and reclaimed)
@@ -1040,6 +1057,11 @@ def _development_entry_search(
          "long_rsi_min":45,"long_rsi_max":60,"short_rsi_min":40,"short_rsi_max":55},
         {"name":"touch_adx25_vol0","mode":"touch","adx_min":25,"h1_adx_min":20,"h4_adx_min":20,"vol_z_min":0.0,"vol_z_max":2.5},
         {"name":"touch_adx25_gap10","mode":"touch","adx_min":25,"h1_adx_min":20,"h4_adx_min":20,"ema_gap_min_bps":10},
+        {"name":"confidence_068","mode":"touch","adx_min":20,"h1_adx_min":18,"h4_adx_min":18,"confidence_min":0.68},
+        {"name":"confidence_072","mode":"touch","adx_min":20,"h1_adx_min":18,"h4_adx_min":18,"confidence_min":0.72},
+        {"name":"structure2_adx25","mode":"touch","adx_min":25,"h1_adx_min":20,"h4_adx_min":20,"structure_break_bars":2},
+        {"name":"structure3_adx25_mtf22","mode":"touch","adx_min":25,"h1_adx_min":22,"h4_adx_min":22,"structure_break_bars":3},
+        {"name":"structure2_conf068","mode":"touch","adx_min":22,"h1_adx_min":20,"h4_adx_min":20,"structure_break_bars":2,"confidence_min":0.68},
     ]
 
     trials: list[dict[str, Any]] = []

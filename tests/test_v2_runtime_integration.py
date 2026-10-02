@@ -69,6 +69,45 @@ def test_controller_async_freezes_negative_oos_trend_probe() -> None:
     assert decision["learning_probe"]["frozen"] is True
 
 
+def test_paper_learning_probe_freezes_negative_range_setup() -> None:
+    item = {
+        "symbol": "ETH/USDT",
+        "runtime_mode": "paper",
+        "regime": "range",
+        "edge_validated": False,
+        "ta_pack": {
+            "price": 100.0,
+            "close": 100.0,
+            "rsi": 29.0,
+            "stoch_k": 12.0,
+            "adx": 14.0,
+            "atr": 1.0,
+            "atr_ratio": 0.01,
+            "atr_pct": 0.01,
+            "vol_z": 0.2,
+            "ema": {"fast": 100.0, "slow": 100.1},
+        },
+        "mtf_features": {
+            "15m": {
+                "close": 100.0,
+                "prev_close": 99.8,
+                "recent_closes": [100.4, 100.2, 99.9, 99.7, 99.8, 100.0],
+                "recent_lows": [100.0, 99.8, 99.5, 99.4, 99.5, 99.7],
+                "recent_highs": [100.6, 100.4, 100.1, 99.9, 100.0, 100.2],
+                "ema_fast": 100.0,
+                "ema_slow": 100.1,
+                "ema200": 100.0,
+            }
+        },
+    }
+    decision = process_symbol_decision(item=item)
+
+    assert decision["action"] == "hold"
+    assert decision["reason"] == "learning probe setup frozen by negative OOS evidence"
+    assert decision["learning_probe"]["frozen"] is True
+    assert decision["candidate_setup"]["setup_id"] == "range_revert.low_band_rejection.long.15m.v2"
+
+
 def test_paper_learning_probe_can_collect_unfrozen_edge_at_capped_size() -> None:
     decision = process_symbol_decision(
         item=_bull_item(edge_validated=False),

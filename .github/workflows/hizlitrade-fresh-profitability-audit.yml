@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/hizlitrade-profitability-host-20261003
+      - research/hizlitrade-nested-validation-20261003
     paths:
       - tools/fresh_hizlitrade_backtest.py
       - hizlitrade/**

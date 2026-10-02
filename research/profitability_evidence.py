@@ -257,6 +257,88 @@ def evaluate_champion_challenger(
     }
 
 
+def strategy_genome_fitness(metrics: dict[str, Any]) -> dict[str, float]:
+    expectancy = _f(metrics.get("expectancy_r"))
+    pf = _f(metrics.get("profit_factor"))
+    drawdown = abs(_f(metrics.get("max_drawdown_r")))
+    instability = abs(_f(metrics.get("fold_expectancy_std")))
+    degradation = max(0.0, _f(metrics.get("oos_degradation_pct")))
+    turnover = max(0.0, _f(metrics.get("turnover_per_day")))
+    cost_drag_r = max(0.0, _f(metrics.get("cost_drag_r")))
+    sample = max(0.0, _f(metrics.get("trades")))
+    sample_factor = min(1.0, sample / 250.0)
+    reward = 100.0 * expectancy + 8.0 * max(0.0, pf - 1.0)
+    penalty = (
+        1.5 * drawdown
+        + 25.0 * instability
+        + 0.20 * degradation
+        + 0.50 * turnover
+        + 20.0 * cost_drag_r
+    )
+    score = (reward - penalty) * sample_factor
+    return {
+        "fitness": score,
+        "reward": reward,
+        "penalty": penalty,
+        "sample_factor": sample_factor,
+    }
+
+
+def risk_command_center(
+    positions: Iterable[dict[str, Any]],
+    *,
+    equity_usd: float,
+    margin_used_usd: float = 0.0,
+    daily_pnl_usd: float = 0.0,
+    weekly_pnl_usd: float = 0.0,
+) -> dict[str, Any]:
+    rows = [dict(row) for row in positions if isinstance(row, dict)]
+    equity = max(abs(float(equity_usd)), 1e-9)
+    notionals = [abs(_f(row.get("notional_usd", row.get("notional")))) for row in rows]
+    gross = sum(notionals)
+    largest = max(notionals, default=0.0)
+    funding = sum(_f(row.get("expected_funding_usd", row.get("funding_usd"))) for row in rows)
+    liq_distances = [
+        abs(_f(row.get("liquidation_distance_pct")))
+        for row in rows
+        if row.get("liquidation_distance_pct") is not None
+    ]
+    clusters: dict[str, float] = defaultdict(float)
+    for row, notional in zip(rows, notionals):
+        cluster = str(row.get("correlation_cluster") or row.get("symbol") or "unknown")
+        clusters[cluster] += notional
+    max_cluster = max(clusters.values(), default=0.0)
+    return {
+        "position_count": len(rows),
+        "gross_exposure_usd": gross,
+        "portfolio_heat_pct": gross / equity,
+        "margin_utilization_pct": max(0.0, float(margin_used_usd)) / equity,
+        "largest_position_concentration_pct": largest / max(gross, 1e-9),
+        "largest_correlation_cluster_pct": max_cluster / max(gross, 1e-9),
+        "min_liquidation_distance_pct": min(liq_distances) if liq_distances else None,
+        "daily_pnl_pct_equity": float(daily_pnl_usd) / equity,
+        "weekly_pnl_pct_equity": float(weekly_pnl_usd) / equity,
+        "expected_funding_drag_pct_equity": funding / equity,
+    }
+
+
+def data_integrity_gate(report: dict[str, Any]) -> dict[str, Any]:
+    blockers: list[str] = []
+    if report.get("fresh") is False:
+        blockers.append("stale_data")
+    if int(_f(report.get("duplicate_rows"))) > 0:
+        blockers.append("duplicate_rows")
+    if int(_f(report.get("future_rows"))) > 0:
+        blockers.append("future_rows")
+    if int(_f(report.get("broken_join_rows"))) > 0:
+        blockers.append("broken_joins")
+    if int(_f(report.get("missing_critical_rows"))) > 0:
+        blockers.append("missing_critical_fields")
+    if report.get("lookahead_detected") is True:
+        blockers.append("lookahead_detected")
+    return {"passed": not blockers, "blockers": blockers, "fail_closed": True}
+
+
 def evaluate_release_gate(evidence: dict[str, Any], config: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg = dict(config or {})
     blockers: list[str] = []
@@ -312,6 +394,9 @@ __all__ = [
     "counterfactual_report",
     "evaluate_champion_challenger",
     "evaluate_release_gate",
+    "strategy_genome_fitness",
+    "risk_command_center",
+    "data_integrity_gate",
     "summarize_by_key",
     "summarize_edge",
 ]

@@ -62,7 +62,7 @@
     "fallback_data_source": "okx",
     "max_concurrent_fetches": 4,
     "cache_enabled": true,
-    "paper_orders_enabled": true,
+    "paper_orders_enabled": false,
     "demo_orders_enabled": false,
     "live_orders_enabled": false,
     "max_same_direction_additions": 1,

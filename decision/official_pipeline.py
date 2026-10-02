@@ -172,6 +172,28 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
                 learning_probe={
                     "active": True,
                     "tracked": False,
+                    "frozen": False,
+                    "target_trades_per_setup": int(probe_cfg.get("target_trades_per_setup", 0) or 0),
+                },
+            )
+
+        frozen_raw = probe_cfg.get("frozen_setups")
+        frozen_setups = {
+            str(value)
+            for value in frozen_raw
+            if str(value)
+        } if isinstance(frozen_raw, list) else set()
+        if expert.setup_id in frozen_setups:
+            return _hold(
+                symbol,
+                regime,
+                "learning probe setup frozen by negative OOS evidence",
+                candidate_setup=expert.to_dict(),
+                learning_probe={
+                    "active": True,
+                    "tracked": (not tracked_setups) or expert.setup_id in tracked_setups,
+                    "frozen": True,
+                    "freeze_reason": str(probe_cfg.get("frozen_setup_reason") or ""),
                     "target_trades_per_setup": int(probe_cfg.get("target_trades_per_setup", 0) or 0),
                 },
             )
@@ -251,6 +273,7 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
         "learning_probe": {
             "active": probe_active,
             "tracked": (not probe_active) or not isinstance(probe_cfg.get("tracked_setups"), list) or expert.setup_id in {str(v) for v in probe_cfg.get("tracked_setups", [])},
+            "frozen": False,
             "target_trades_per_setup": int(probe_cfg.get("target_trades_per_setup", 0) or 0) if probe_active else None,
             "max_size_scale": float(probe_cfg.get("max_size_scale", 0.25) or 0.25) if probe_active else None,
         },

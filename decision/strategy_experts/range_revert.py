@@ -37,13 +37,13 @@ def evaluate_range(*, item: dict[str, Any], ta: dict[str, Any], max_leverage: in
     short_reentry = closes[-1] < prev and closes[-1] < recent_max * 0.999
 
     if long_extreme and long_reentry:
-        confidence=min(0.88,0.68 + min(0.12,(30.0-rsi)/100.0) + min(0.06,(20.0-stoch)/100.0))
+        confidence=min(0.82,0.61 + min(0.08,max(0.0,30.0-rsi)*0.01) + min(0.06,max(0.0,20.0-stoch)*0.005))
         return ExpertSignal(
             "range_revert.low_band_rejection.long.15m.v2","long",confidence,
             "mean_reversion",["dual oversold extreme","price re-entry confirmation","low ADX range"],max(1,int(max_leverage)),
         )
     if short_extreme and short_reentry:
-        confidence=min(0.88,0.68 + min(0.12,(rsi-70.0)/100.0) + min(0.06,(stoch-80.0)/100.0))
+        confidence=min(0.82,0.61 + min(0.08,max(0.0,rsi-70.0)*0.01) + min(0.06,max(0.0,stoch-80.0)*0.005))
         return ExpertSignal(
             "range_revert.high_band_rejection.short.15m.v2","short",confidence,
             "mean_reversion",["dual overbought extreme","price rejection confirmation","low ADX range"],max(1,int(max_leverage)),

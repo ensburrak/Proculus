@@ -4,7 +4,7 @@ import json
 import math
 import statistics
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,7 @@ class PortfolioReplayConfig:
     max_concurrent_positions: int = 8
     max_daily_loss_pct: float = 0.05
     max_drawdown_pct: float = 0.10
+    risk_budget_slots: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +128,8 @@ def replay_portfolio(
         raise ValueError("initial_balance must be positive")
     if config.max_concurrent_positions <= 0:
         raise ValueError("max_concurrent_positions must be positive")
+    if config.risk_budget_slots is not None and config.risk_budget_slots <= 0:
+        raise ValueError("risk_budget_slots must be positive when configured")
 
     def trade_priority(trade: SettledTrade) -> tuple[int, float, str, str]:
         edge = _finite(trade.net_edge)
@@ -193,10 +196,37 @@ def replay_portfolio(
             rejections["max_drawdown_kill_switch"] += 1
             continue
 
-        notional = max(trade.cost_basis_usd, 0.0)
-        if notional <= 0:
+        source_notional = max(trade.cost_basis_usd, 0.0)
+        if source_notional <= 0:
             rejections["invalid_notional"] += 1
             continue
+
+        notional = source_notional
+        admitted_trade = trade
+        if config.risk_budget_slots is not None:
+            # Divide the existing hard daily-loss budget into independent
+            # worst-case binary-loss slots. This does not relax the account
+            # loss limit; it only prevents one large research notional from
+            # consuming most of that limit before other qualified candidates
+            # can be observed.
+            slot_notional = (
+                current_equity
+                * config.max_daily_loss_pct
+                / config.risk_budget_slots
+            )
+            notional = min(source_notional, slot_notional)
+            if notional <= 0:
+                rejections["risk_slot_has_no_budget"] += 1
+                continue
+            if notional < source_notional:
+                scale = notional / source_notional
+                admitted_trade = replace(
+                    trade,
+                    cost_basis_usd=notional,
+                    realized_pnl_usd=trade.realized_pnl_usd * scale,
+                    shares=trade.shares * scale,
+                )
+
         worst_case_cash = cash - notional
         worst_daily_loss = max(start_of_day_equity - worst_case_cash, 0.0)
         if worst_daily_loss / start_of_day_equity > config.max_daily_loss_pct:
@@ -235,8 +265,8 @@ def replay_portfolio(
             continue
 
         cash -= notional
-        open_positions.append(trade)
-        accepted.append(trade)
+        open_positions.append(admitted_trade)
+        accepted.append(admitted_trade)
         refresh_drawdown()
 
     settle_due(10**30)

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from decision.stochrsi_parallel import compute_stochrsi90_snapshot
+
 
 def _last(df: Any, *names: str) -> float | None:
     if df is None or getattr(df, "empty", True):
@@ -69,18 +71,43 @@ def build_ta_pack_from_multidata(multi_data: dict[str, Any], tf_main: str = "15m
         elif fast < slow:
             base = "short"
     closes = row.get("recent_closes") or []
-    return {
+    main_df = (multi_data or {}).get(str(tf_main).lower())
+    close_history = []
+    if main_df is not None and not getattr(main_df, "empty", True):
+        for raw in getattr(main_df, "get", lambda *_args, **_kwargs: [])("close", []):
+            try:
+                value = float(raw)
+                if value == value:
+                    close_history.append(value)
+            except (TypeError, ValueError):
+                continue
+    stochrsi = compute_stochrsi90_snapshot(close_history)
+    payload = {
         "base_decision": base,
         "price": closes[-1] if closes else None,
         "rsi": row.get("rsi"),
         "adx": row.get("adx"),
         "atr": row.get("atr"),
         "atr_ratio": row.get("atr_ratio"),
+        "atr_pct": row.get("atr_ratio"),
         "vol_z": row.get("vol_z"),
+        "ema_fast": fast,
+        "ema_slow": slow,
         "ema": {"fast": fast, "slow": slow},
         "ema200": row.get("ema200"),
         "macd_hist": row.get("macd_hist"),
+        "plus_di": _last(main_df, "plus_di", "dmi_plus", "DI_plus", "+DI"),
+        "minus_di": _last(main_df, "minus_di", "dmi_minus", "DI_minus", "-DI"),
+        "cmf": _last(main_df, "cmf", "CMF"),
+        "volume_spike_ratio": _last(
+            main_df,
+            "volume_spike_ratio",
+            "volume_expansion_ratio",
+            "VOL_EXPANSION_RATIO",
+        ),
     }
+    payload.update(stochrsi)
+    return payload
 
 
 def safe_last(df: Any, column: str, default: Any = None) -> Any:

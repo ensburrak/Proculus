@@ -91,7 +91,12 @@ def initialise_db(db_path: Optional[Path] = None) -> None:
                 wallet_allocation_percent REAL,
                 risk_usd REAL,
                 tf TEXT,
-                base_decision TEXT
+                base_decision TEXT,
+                setup_id TEXT,
+                regime TEXT,
+                strategy TEXT,
+                r_multiple REAL,
+                runtime_mode TEXT
             )
             """
         )
@@ -99,6 +104,20 @@ def initialise_db(db_path: Optional[Path] = None) -> None:
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_trades_timestamp_close ON trades(timestamp_close)"
         )
+        existing_trade_columns = {
+            str(row[1])
+            for row in c.execute("PRAGMA table_info(trades)").fetchall()
+        }
+        for column_name, sql_type in (
+            ("setup_id", "TEXT"),
+            ("regime", "TEXT"),
+            ("strategy", "TEXT"),
+            ("r_multiple", "REAL"),
+            ("runtime_mode", "TEXT"),
+        ):
+            if column_name not in existing_trade_columns:
+                c.execute(f"ALTER TABLE trades ADD COLUMN {column_name} {sql_type}")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_trades_setup_id ON trades(setup_id)")
         # Predictions table
         c.execute(
             """
@@ -227,6 +246,11 @@ def insert_trade(conn: sqlite3.Connection, record: Dict[str, Any]) -> None:
         "risk_usd",
         "tf",
         "base_decision",
+        "setup_id",
+        "regime",
+        "strategy",
+        "r_multiple",
+        "runtime_mode",
     ]
     values = [record.get(k) for k in fields]
     conn.execute(

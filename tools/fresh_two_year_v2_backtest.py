@@ -440,12 +440,24 @@ def _stoch_cross_prefilter(row: pd.Series) -> bool:
     return (pk < pdv and k >= d) or (pk > pdv and k <= d)
 
 
-def generate_candidates(symbol: str, frame: pd.DataFrame, *, include_stochrsi: bool = True) -> list[Candidate]:
+def generate_candidates(
+    symbol: str,
+    frame: pd.DataFrame,
+    *,
+    include_stochrsi: bool = True,
+    frozen_setups: set[str] | None = None,
+) -> list[Candidate]:
     candidates: list[Candidate] = []
     for idx in range(800, len(frame) - 1):
         row = frame.iloc[idx]
         recent = frame.iloc[max(0, idx - 7): idx + 1]
-        primary_possible = prefilter(row, recent)
+        regime = str(row.get("regime") or "unknown")
+        frozen = frozen_setups or set()
+        frozen_primary = (
+            (regime == "bull" and "bull_trend.pullback.long.15m.v2" in frozen)
+            or (regime == "bear" and "bear_trend.pullback.short.15m.v2" in frozen)
+        )
+        primary_possible = (not frozen_primary) and prefilter(row, recent)
         stoch_possible = bool(include_stochrsi) and _stoch_cross_prefilter(row)
         if not primary_possible and not stoch_possible:
             continue
@@ -1223,6 +1235,13 @@ def main() -> int:
 
     stoch_cfg = cfg.get("stochrsi_parallel") if isinstance(cfg.get("stochrsi_parallel"), dict) else {}
     stoch_execution_enabled = bool(stoch_cfg.get("paper_orders_enabled", False))
+    pipeline_cfg = cfg.get("pipeline_v2") if isinstance(cfg.get("pipeline_v2"), dict) else {}
+    probe_cfg = pipeline_cfg.get("learning_probe_mode") if isinstance(pipeline_cfg.get("learning_probe_mode"), dict) else {}
+    frozen_setups = {
+        str(value)
+        for value in (probe_cfg.get("frozen_setups") or [])
+        if str(value)
+    }
 
     frames: dict[str, pd.DataFrame] = {}
     candidates: list[Candidate] = []
@@ -1238,6 +1257,7 @@ def main() -> int:
                 symbol,
                 frame,
                 include_stochrsi=stoch_execution_enabled,
+                frozen_setups=frozen_setups,
             )
             candidates.extend(symbol_candidates)
             print(
@@ -1381,6 +1401,7 @@ def main() -> int:
         "symbol_count": len(frames),
         "candidate_count": len(candidates),
         "stochrsi_paper_execution_enabled": stoch_execution_enabled,
+        "frozen_setup_ids": sorted(frozen_setups),
         "period_meta": period_meta,
         "methodology": {
             "decision_engine": "decision.official_pipeline.process_symbol_decision + independent StochRSI90 lane",
@@ -1391,6 +1412,7 @@ def main() -> int:
                 "independent executable paper lane" if stoch_execution_enabled
                 else "independent shadow-only lane; excluded from portfolio simulation after negative OOS evidence"
             ),
+            "frozen_learning_probe_setups": sorted(frozen_setups),
             "entry": "next 15m open after closed-candle decision",
             "same_timestamp_symbol_priority": "current OKX runtime universe order by descending approx 24h quote volume; alphabetical fallback only if metadata unavailable",
             "max_open_positions": int((cfg.get("trade_parameters") or {}).get("max_open_positions", 2)),

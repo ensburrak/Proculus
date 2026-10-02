@@ -6,7 +6,7 @@ import json
 import math
 import sys
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -690,6 +690,137 @@ def acceptance_flags(payload: dict[str, Any]) -> dict[str, Any]:
     return {**checks, "all_pass": all(checks.values())}
 
 
+
+def _trend_exit_variant(
+    candidates: list[Candidate],
+    *,
+    stop_atr_mult: float,
+    tp_r_target: float,
+    max_hold_bars: int,
+) -> list[Candidate]:
+    out: list[Candidate] = []
+    for candidate in candidates:
+        if candidate.strategy == "trend_pullback_resumption":
+            out.append(
+                replace(
+                    candidate,
+                    stop_atr_mult=float(stop_atr_mult),
+                    tp_r_target=float(tp_r_target),
+                    max_hold_bars=int(max_hold_bars),
+                )
+            )
+        else:
+            out.append(candidate)
+    return out
+
+
+def _development_exit_search(
+    *,
+    development_candidates: list[Candidate],
+    oos_candidates: list[Candidate],
+    frames: dict[str, pd.DataFrame],
+    cfg: dict[str, Any],
+    initial_balance: float,
+    fee_bps: float,
+) -> dict[str, Any]:
+    grid = [
+        {"stop_atr_mult": 1.0, "tp_r_target": 2.0, "max_hold_bars": 96},
+        {"stop_atr_mult": 1.0, "tp_r_target": 2.5, "max_hold_bars": 128},
+        {"stop_atr_mult": 1.25, "tp_r_target": 2.5, "max_hold_bars": 128},
+        {"stop_atr_mult": 1.25, "tp_r_target": 3.0, "max_hold_bars": 160},
+        {"stop_atr_mult": 1.5, "tp_r_target": 3.0, "max_hold_bars": 192},
+        {"stop_atr_mult": 1.5, "tp_r_target": 3.5, "max_hold_bars": 192},
+        {"stop_atr_mult": 1.75, "tp_r_target": 3.0, "max_hold_bars": 192},
+        {"stop_atr_mult": 1.75, "tp_r_target": 3.5, "max_hold_bars": 224},
+    ]
+    trials: list[dict[str, Any]] = []
+    passing: list[dict[str, Any]] = []
+
+    for params in grid:
+        variant = _trend_exit_variant(development_candidates, **params)
+        dev_5 = simulate(
+            candidates=variant,
+            frames=frames,
+            initial_balance=initial_balance,
+            fee_bps=fee_bps,
+            slippage_bps=5.0,
+            cfg=cfg,
+        )
+        dev_15 = simulate(
+            candidates=variant,
+            frames=frames,
+            initial_balance=initial_balance,
+            fee_bps=fee_bps,
+            slippage_bps=15.0,
+            cfg=cfg,
+        )
+        checks = {
+            "trades_5bps_gte_300": int(dev_5.get("trades", 0)) >= 300,
+            "pf_5bps_gte_1_15": float(dev_5.get("profit_factor", 0.0)) >= 1.15,
+            "expectancy_5bps_gte_0_05r": float(dev_5.get("expectancy_r", -999.0)) >= 0.05,
+            "maxdd_5bps_lte_20pct": float(dev_5.get("max_drawdown_pct_realized", 999.0)) <= 20.0,
+            "pf_15bps_gte_1_05": float(dev_15.get("profit_factor", 0.0)) >= 1.05,
+            "expectancy_15bps_gte_0r": float(dev_15.get("expectancy_r", -999.0)) >= 0.0,
+        }
+        trial = {
+            **params,
+            "development_5bps": compact_stats(dev_5),
+            "development_15bps": compact_stats(dev_15),
+            "checks": checks,
+            "development_pass": all(checks.values()),
+        }
+        trials.append(trial)
+        if trial["development_pass"]:
+            passing.append(trial)
+        print("DEVELOPMENT_EXIT_TRIAL=" + json.dumps(trial, ensure_ascii=False), flush=True)
+
+    selected = None
+    oos = {}
+    if passing:
+        passing.sort(
+            key=lambda row: (
+                min(
+                    float(row["development_5bps"]["profit_factor"]),
+                    float(row["development_15bps"]["profit_factor"]),
+                ),
+                min(
+                    float(row["development_5bps"]["expectancy_r"]),
+                    float(row["development_15bps"]["expectancy_r"]),
+                ),
+                -float(row["development_5bps"]["max_drawdown_pct_realized"]),
+            ),
+            reverse=True,
+        )
+        selected = {
+            key: passing[0][key]
+            for key in ("stop_atr_mult", "tp_r_target", "max_hold_bars")
+        }
+        locked_oos = _trend_exit_variant(oos_candidates, **selected)
+        for bps in (5.0, 15.0):
+            name = f"slippage_{int(bps)}bps"
+            payload = simulate(
+                candidates=locked_oos,
+                frames=frames,
+                initial_balance=initial_balance,
+                fee_bps=fee_bps,
+                slippage_bps=bps,
+                cfg=cfg,
+            )
+            oos[name] = {
+                **compact_stats(payload),
+                "acceptance": acceptance_flags(payload),
+            }
+
+    return {
+        "scope": "trend_pullback_resumption exits only; entries unchanged",
+        "selection_data": "development period only",
+        "holdout_policy": "OOS is evaluated only if a variant passes all development robustness checks",
+        "grid": trials,
+        "selected": selected,
+        "oos_locked_result": oos,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
@@ -752,6 +883,16 @@ def main() -> int:
         "oos_candidate_count": len(oos_candidates),
         "embargo_candidate_count": len(candidates) - len(development_candidates) - len(oos_candidates),
     }
+
+
+    exit_research = _development_exit_search(
+        development_candidates=development_candidates,
+        oos_candidates=oos_candidates,
+        frames=frames,
+        cfg=cfg,
+        initial_balance=args.initial_balance,
+        fee_bps=args.fee_bps,
+    )
 
     scenarios: dict[str, dict[str, Any]] = {}
     period_scenarios: dict[str, dict[str, dict[str, Any]]] = {
@@ -847,15 +988,16 @@ def main() -> int:
             "same_bar_priority": "stop before target",
             "lookahead": "1h/4h values become available only after higher-timeframe candle close",
             "validation": (
-                f"first ~{args.days - args.holdout_days} days are development; "
-                f"last {args.holdout_days} days are untouched OOS holdout; "
-                f"{args.embargo_hours}h embargo prevents development trades from leaking into holdout"
+                f"retrospective chronological split: development ends {args.embargo_hours}h before "
+                f"the last {args.holdout_days}d holdout; baseline holdout has already been inspected, "
+                "so parameter research must select on development only and treat holdout as confirmation rather than pristine OOS"
             ),
             "oos_acceptance": "PF>=1.15, expectancy>=0.05R, maxDD<=20%, >=100 closed trades",
         },
         "scenarios": scenarios,
         "period_scenarios": period_scenarios,
         "oos_acceptance": acceptance,
+        "development_exit_research": exit_research,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -871,6 +1013,7 @@ def main() -> int:
                 "development": {k: compact_stats(v) for k, v in period_scenarios["development"].items()},
                 "oos_holdout": {k: compact_stats(v) for k, v in period_scenarios["oos_holdout"].items()},
                 "oos_acceptance": acceptance,
+                "development_exit_research": exit_research,
             },
             ensure_ascii=False,
         ),

@@ -149,3 +149,93 @@ def test_stochrsi90_fails_closed_in_never_trade_regimes() -> None:
         assert result["action"] == "hold"
         assert result["direction"] == "neutral"
         assert result["risk_scale"] == 0.0
+
+
+
+def test_stochrsi90_snapshot_is_computed_from_closed_price_history() -> None:
+    import math
+
+    from decision.stochrsi_parallel import compute_stochrsi90_snapshot
+
+    closes = [
+        100.0 + 0.025 * idx + 2.0 * math.sin(idx / 7.0)
+        for idx in range(320)
+    ]
+    snapshot = compute_stochrsi90_snapshot(closes)
+
+    assert snapshot["stoch_rsi_warmup_ok"] is True
+    for key in (
+        "stoch_rsi_90_k",
+        "stoch_rsi_90_d",
+        "stoch_rsi_90_prev_k",
+        "stoch_rsi_90_prev_d",
+    ):
+        assert 0.0 <= float(snapshot[key]) <= 100.0
+
+
+def test_runtime_ta_pack_includes_native_stochrsi90_snapshot() -> None:
+    import math
+
+    import pandas as pd
+
+    from runtime.runtime_ta_pack import build_ta_pack_from_multidata
+
+    close = [
+        100.0 + 0.025 * idx + 2.0 * math.sin(idx / 7.0)
+        for idx in range(320)
+    ]
+    frame = pd.DataFrame(
+        {
+            "close": close,
+            "open": close,
+            "high": [value + 0.4 for value in close],
+            "low": [value - 0.4 for value in close],
+            "volume": [1000.0 + (idx % 11) * 20.0 for idx in range(320)],
+            "ema_fast": pd.Series(close).ewm(span=20, adjust=False).mean(),
+            "ema_slow": pd.Series(close).ewm(span=50, adjust=False).mean(),
+            "adx": [24.0] * 320,
+            "atr": [1.2] * 320,
+            "atr_ratio": [0.012] * 320,
+        }
+    )
+
+    ta = build_ta_pack_from_multidata({"15m": frame})
+
+    assert ta["stoch_rsi_warmup_ok"] is True
+    assert 0.0 <= float(ta["stoch_rsi_90_k"]) <= 100.0
+    assert 0.0 <= float(ta["stoch_rsi_90_d"]) <= 100.0
+
+
+def test_runtime_exposes_stochrsi_as_parallel_authority_without_overwriting_v2(
+    monkeypatch,
+) -> None:
+    import runtime.runtime_loop_services as loop_services
+
+    item = _bull_item()
+    item["ta_pack"].update(_stoch_ta())
+
+    async def fake_analyze(_exchange, _symbol, runtime_mode="paper"):
+        result = dict(item)
+        result["runtime_mode"] = runtime_mode
+        return result
+
+    monkeypatch.setattr(loop_services, "_analyze_one", fake_analyze)
+
+    class DummyExchange:
+        async def create_order(self, *args, **kwargs):
+            raise AssertionError("paper runtime must not submit an exchange order")
+
+    latest = asyncio.run(
+        loop_services.trading_loop_async_service(
+            DummyExchange(),
+            ["BTC/USDT"],
+            runtime_mode="paper",
+            once=True,
+        )
+    )
+    decision = latest["BTC/USDT"]
+
+    assert decision["pipeline"] == "v2"
+    assert decision["parallel_decisions"]["stochrsi"]["pipeline"] == "stochrsi_parallel"
+    assert decision["parallel_decisions"]["stochrsi"]["authority"] == "independent"
+    assert decision["parallel_decisions"]["stochrsi"]["execution"]["order_sent"] is False

@@ -1006,6 +1006,11 @@
         "conflict": 0,
         "unknown": 0
       }
+    },
+    "cross_sectional_ranking": {
+      "enabled": true,
+      "top_fraction": 0.15,
+      "min_candidates": 2
     }
   },
   "max_concurrent_positions": 0,

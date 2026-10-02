@@ -1252,10 +1252,147 @@ def main() -> int:
         for value in (probe_cfg.get("frozen_setups") or [])
         if str(value)
     }
+    tracked_setups = {
+        str(value)
+        for value in (probe_cfg.get("tracked_setups") or [])
+        if str(value)
+    }
+
+    paths = sorted(args.data_dir.glob("*_15m.parquet"))
+    all_tracked_frozen = bool(tracked_setups) and tracked_setups.issubset(frozen_setups)
+    if all_tracked_frozen and not stoch_execution_enabled:
+        symbols: list[str] = []
+        starts: list[pd.Timestamp] = []
+        ends: list[pd.Timestamp] = []
+        for path in paths:
+            try:
+                ts = pd.read_parquet(path, columns=["timestamp"])["timestamp"]
+                ts = pd.to_datetime(ts, utc=True)
+                if ts.empty:
+                    continue
+                symbols.append(symbol_from_path(path))
+                starts.append(pd.Timestamp(ts.min()))
+                ends.append(pd.Timestamp(ts.max()))
+            except Exception as exc:
+                print(f"[FAST_PATH_SKIP] {path.name}: {type(exc).__name__}: {exc}", flush=True)
+
+        if not starts or not ends:
+            raise SystemExit("fail-closed fast path could not verify replay timestamps")
+
+        data_start = min(starts)
+        data_end = max(ends)
+        holdout_start = data_end - pd.Timedelta(days=args.holdout_days)
+        development_cutoff = holdout_start - pd.Timedelta(hours=args.embargo_hours)
+        validation_start = development_cutoff - pd.Timedelta(days=120)
+        train_cutoff = validation_start - pd.Timedelta(hours=48)
+        period_meta = {
+            "data_start": data_start.isoformat(),
+            "data_end": data_end.isoformat(),
+            "development_entry_end_exclusive": development_cutoff.isoformat(),
+            "holdout_start": holdout_start.isoformat(),
+            "holdout_days": args.holdout_days,
+            "embargo_hours": args.embargo_hours,
+            "development_candidate_count": 0,
+            "oos_candidate_count": 0,
+            "embargo_candidate_count": 0,
+            "research_train_end_exclusive": train_cutoff.isoformat(),
+            "validation_start": validation_start.isoformat(),
+            "validation_end_exclusive": development_cutoff.isoformat(),
+            "research_train_candidate_count": 0,
+            "validation_candidate_count": 0,
+        }
+        zero = {
+            "initial_balance": round(args.initial_balance, 4),
+            "final_balance": round(args.initial_balance, 4),
+            "return_pct": 0.0,
+            "max_drawdown_pct_realized": 0.0,
+            "trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "win_rate_pct": 0.0,
+            "profit_factor": 0.0,
+            "expectancy_r": 0.0,
+            "fees_paid": 0.0,
+            "funding_paid": 0.0,
+            "skipped_entries": {"all_tracked_setups_frozen": 1},
+            "by_setup": {},
+            "by_regime": {},
+            "by_symbol": {},
+        }
+        scenarios = {
+            f"slippage_{int(float(raw.strip()))}bps": dict(zero)
+            for raw in str(args.slippage_bps).split(",")
+        }
+        period_scenarios = {
+            "development": {key: dict(value) for key, value in scenarios.items()},
+            "oos_holdout": {key: dict(value) for key, value in scenarios.items()},
+        }
+        acceptance = {
+            key: acceptance_flags(value)
+            for key, value in period_scenarios["oos_holdout"].items()
+        }
+        report = {
+            "schema": "proculus-fresh-v2-two-year-oos-v2",
+            "previous_backtests_used": False,
+            "history_days": args.days,
+            "bar": "15m",
+            "symbols": sorted(symbols),
+            "symbol_count": len(symbols),
+            "candidate_count": 0,
+            "stochrsi_paper_execution_enabled": False,
+            "frozen_setup_ids": sorted(frozen_setups),
+            "period_meta": period_meta,
+            "fail_closed_fast_path": {
+                "active": True,
+                "reason": "all tracked V2 setups are frozen and StochRSI paper execution is disabled",
+                "tracked_setup_count": len(tracked_setups),
+                "frozen_tracked_setup_count": len(tracked_setups & frozen_setups),
+            },
+            "methodology": {
+                "decision_engine": "fail-closed configuration invariant verified before feature generation",
+                "edge_gate": "no currently tracked setup is executable in paper; live/testnet release is separately fail-closed",
+                "ml_direction_authority": "disabled",
+                "stochrsi_parallel": "shadow-only; excluded from executable portfolio simulation",
+                "frozen_learning_probe_setups": sorted(frozen_setups),
+                "entry": "not applicable: no executable setup",
+                "validation": "timestamp-only data coverage verification plus runtime smoke tests for frozen decision behavior",
+                "oos_acceptance": "not applicable until a setup is re-enabled by new train-validation evidence",
+            },
+            "scenarios": scenarios,
+            "period_scenarios": period_scenarios,
+            "oos_acceptance": acceptance,
+            "development_exit_research": {
+                "selected": None,
+                "reason": "all tracked production setups frozen; research moved to isolated hypothesis workflows",
+            },
+            "development_entry_research": {
+                "selected": None,
+                "reason": "all tracked production setups frozen; research moved to isolated hypothesis workflows",
+            },
+        }
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(
+            "FRESH_BACKTEST_SUMMARY="
+            + json.dumps(
+                {
+                    "symbol_count": report["symbol_count"],
+                    "candidate_count": 0,
+                    "period_meta": period_meta,
+                    "scenarios": {k: compact_stats(v) for k, v in scenarios.items()},
+                    "development": {k: compact_stats(v) for k, v in period_scenarios["development"].items()},
+                    "oos_holdout": {k: compact_stats(v) for k, v in period_scenarios["oos_holdout"].items()},
+                    "oos_acceptance": acceptance,
+                    "fail_closed_fast_path": report["fail_closed_fast_path"],
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+        return 0
 
     frames: dict[str, pd.DataFrame] = {}
     candidates: list[Candidate] = []
-    paths = sorted(args.data_dir.glob("*_15m.parquet"))
     for idx, path in enumerate(paths, 1):
         symbol = symbol_from_path(path)
         try:

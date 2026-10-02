@@ -23,6 +23,8 @@ from decision.stochrsi_opportunity import evaluate_stochrsi_opportunity
 
 OUT_DIR = ROOT / "scratch" / "fresh_proculus_two_year"
 
+_SYMBOL_PRIORITY: dict[str, int] = {}
+
 
 @dataclass
 class Candidate:
@@ -137,6 +139,33 @@ def stoch_rsi_series(close: pd.Series, rsi_period: int, stoch_period: int) -> tu
     k = raw.rolling(3, min_periods=3).mean()
     d = k.rolling(3, min_periods=3).mean()
     return k.clip(0, 100), d.clip(0, 100)
+
+
+
+def load_symbol_priority(metadata_path: Path | None) -> dict[str, int]:
+    if metadata_path is None or not metadata_path.exists():
+        return {}
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return {}
+    eligible = payload.get("eligible_instruments")
+    if not isinstance(eligible, list):
+        return {}
+    priority: dict[str, int] = {}
+    for rank, row in enumerate(eligible):
+        if not isinstance(row, dict):
+            continue
+        base = str(row.get("base") or "").strip().upper()
+        if not base:
+            inst_id = str(row.get("instId") or "").strip().upper()
+            suffix = "-USDT-SWAP"
+            if inst_id.endswith(suffix):
+                base = inst_id[:-len(suffix)]
+        if not base:
+            continue
+        priority[f"{base}/USDT:USDT"] = rank
+    return priority
 
 
 def symbol_from_path(path: Path) -> str:
@@ -587,7 +616,15 @@ def simulate(
                 remaining.append(pos)
         positions = remaining
 
-    for cand in sorted(candidates, key=lambda x: (x.entry_time, x.symbol, x.setup_id)):
+    for cand in sorted(
+        candidates,
+        key=lambda x: (
+            x.entry_time,
+            _SYMBOL_PRIORITY.get(x.symbol, 1_000_000),
+            x.symbol,
+            x.setup_id,
+        ),
+    ):
         realize_until(cand.entry_time)
         equity = max(0.0, mark_equity(cand.entry_time))
         if equity <= 0.0:
@@ -1123,6 +1160,7 @@ def _development_entry_search(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--metadata", type=Path, default=None)
     parser.add_argument("--days", type=int, default=730)
     parser.add_argument("--holdout-days", type=int, default=180)
     parser.add_argument("--embargo-hours", type=int, default=48)
@@ -1139,6 +1177,13 @@ def main() -> int:
 
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     v2_pipeline._load_config = lambda: cfg  # research replay cache, same config content
+
+    global _SYMBOL_PRIORITY
+    metadata_path = args.metadata
+    if metadata_path is None:
+        candidate_metadata = args.data_dir.parent / "fetch_metadata.json"
+        metadata_path = candidate_metadata if candidate_metadata.exists() else None
+    _SYMBOL_PRIORITY = load_symbol_priority(metadata_path)
 
     frames: dict[str, pd.DataFrame] = {}
     candidates: list[Candidate] = []
@@ -1300,6 +1345,7 @@ def main() -> int:
             "meta_quality": "not enforced because no calibrated historical meta model is available",
             "stochrsi_parallel": "independent candidate authority; does not vote inside primary router",
             "entry": "next 15m open after closed-candle decision",
+            "same_timestamp_symbol_priority": "current OKX runtime universe order by descending approx 24h quote volume; alphabetical fallback only if metadata unavailable",
             "max_open_positions": int((cfg.get("trade_parameters") or {}).get("max_open_positions", 2)),
             "trade_cooldown_min": int((cfg.get("trade_parameters") or {}).get("trade_cooldown_min", 39)),
             "daily_loss_limit_pct": float((cfg.get("risk") or {}).get("daily_loss_limit_pct", 0.005)),

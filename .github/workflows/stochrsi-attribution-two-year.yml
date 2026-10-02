@@ -1,6 +1,9 @@
 name: Proculus Two Year Attribution
 
 on:
+  push:
+    branches:
+      - integration/profitability-v3-20261003
   pull_request:
     paths:
       - "decision/stochrsi_parallel.py"
@@ -77,6 +80,42 @@ jobs:
               "scenarios": report.get("scenarios"),
           }, separators=(",", ":")))
           PY
+      - name: Extract V3 combined 5bps trade evidence
+        run: |
+          mkdir -p reports
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("scratch/proculus_attribution_730d")
+          report=json.loads((root/"result.json").read_text())
+          trades=report["scenarios"]["combined_independent"]["slippage_5bps"].get("trade_evidence") or []
+          (root/"combined_5bps_trades.json").write_text(json.dumps(trades, indent=2), encoding="utf-8")
+          print(f"trade_evidence={len(trades)}")
+          PY
+      - name: Run leakage-safe walk-forward OOS validation
+        run: |
+          python tools/walk_forward_edge_validation.py             --input scratch/proculus_attribution_730d/combined_5bps_trades.json             --output scratch/proculus_attribution_730d/walk_forward_v3.json             --train-size 250             --test-size 100             --purge-size 4             --embargo-size 4
+      - name: Build hypothetical backtest TCA
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from research.profitability_evidence import build_tca
+          root=Path("scratch/proculus_attribution_730d")
+          trades=json.loads((root/"combined_5bps_trades.json").read_text())
+          events=[]
+          for trade in trades:
+              item=dict(trade)
+              item["fee_usd"]=float(trade.get("fee_usd") or 0)
+              item["funding_usd"]=float(trade.get("funding_usd") or 0)
+              item["cost_drag_usd"]=float(trade.get("cost_drag_usd") or 0)
+              events.append(item)
+          payload={
+              "scope":"historical_backtest_hypothetical_not_release_tca",
+              "summary":build_tca(events).to_dict(),
+          }
+          (root/"hypothetical_tca.json").write_text(json.dumps(payload,indent=2),encoding="utf-8")
+          PY
       - name: Upload attribution artifact
         uses: actions/upload-artifact@v4
         with:
@@ -84,5 +123,8 @@ jobs:
           path: |
             scratch/proculus_attribution_730d/result.json
             scratch/proculus_attribution_730d/fetch_metadata.json
+            scratch/proculus_attribution_730d/combined_5bps_trades.json
+            scratch/proculus_attribution_730d/walk_forward_v3.json
+            scratch/proculus_attribution_730d/hypothetical_tca.json
           retention-days: 14
           if-no-files-found: error

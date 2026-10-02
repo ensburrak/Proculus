@@ -969,7 +969,8 @@
         "compression_breakout.down_retest.short.15m.v2"
       ],
       "progress_file": "state/learning_probe_progress.json",
-      "allow_sample_collection_without_edge": true
+      "allow_sample_collection_without_edge": true,
+      "risk_per_trade_pct": 0.0025
     },
     "meta_quality_gate": {
       "enabled": true,

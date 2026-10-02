@@ -130,3 +130,37 @@ def test_bulk_gamma_discovery_batches_repeated_slug_filters(monkeypatch) -> None
     second_query = urllib.parse.parse_qs(urllib.parse.urlsplit(calls[1]).query)
     assert len(first_query["slug"]) == 2
     assert len(second_query["slug"]) == 1
+
+
+def test_batch_price_history_groups_tokens_without_fabricating_rows(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    def fake_post(url: str, payload: dict, attempts: int = 5):
+        del attempts
+        assert url.endswith("/batch-prices-history")
+        calls.append(payload)
+        return {
+            "history": {
+                token: [
+                    {"t": 100, "p": "0.40"},
+                    {"t": 110, "p": "0.60"},
+                ]
+                for token in payload["markets"]
+            }
+        }
+
+    monkeypatch.setattr(_MODULE, "post_json", fake_post)
+
+    found = _MODULE.batch_instrument_histories(
+        {"token-a", "token-b", "token-c"},
+        start_ts=90,
+        end_ts=120,
+        batch_size=2,
+    )
+
+    assert len(calls) == 2
+    assert calls[0]["start_ts"] == 90
+    assert calls[0]["end_ts"] == 120
+    assert calls[0]["fidelity"] == 1
+    assert set(found) == {"token-a", "token-b", "token-c"}
+    assert found["token-a"] == [(100, 0.4), (110, 0.6)]

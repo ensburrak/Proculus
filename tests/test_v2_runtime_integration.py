@@ -16,6 +16,16 @@ def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:
         "runtime_mode": "paper",
         "regime": regime,
         "edge_validated": edge_validated,
+        "expected_edge_bps": 50.0,
+        "estimated_slippage_bps": 2.0,
+        "spread_bps": 1.0,
+        "expected_hold_hours": 4.0,
+        "setup_expectancy": {
+            "samples": 150,
+            "profit_factor": 1.30,
+            "expectancy_r": 0.12,
+            "expectancy_r_ci95_low": 0.03,
+        },
         "ta_pack": {
             "base_decision": "long",
             "rsi": 56.0,
@@ -71,6 +81,17 @@ def test_strict_edge_evidence_fails_closed() -> None:
     assert decision["action"] == "hold"
     assert decision["risk_scale"] == 0.0
     assert "edge evidence" in decision["reason"]
+
+
+def test_costed_edge_is_required_for_capital_authority() -> None:
+    item = _bull_item()
+    item.pop("expected_edge_bps")
+    result = asyncio.run(controller_async.decide_batch([item]))
+    decision = result["BTC/USDT"]
+
+    assert decision["action"] == "hold"
+    assert decision["risk_scale"] == 0.0
+    assert "costed_edge_missing" in decision["reason"]
 
 
 def test_shock_regime_is_hard_no_trade() -> None:

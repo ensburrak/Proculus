@@ -693,6 +693,29 @@ def simulate(
             max_dd = min(max_dd, (value - peak) / peak)
     rvals = [t.net_pnl / t.risk_usd for t in closed if t.risk_usd > 0]
 
+    trade_evidence = [
+        {
+            "symbol": t.symbol,
+            "setup_id": t.setup_id,
+            "strategy": t.strategy,
+            "regime": t.regime,
+            "direction": t.side,
+            "entry_time": t.entry_time.isoformat(),
+            "exit_time": t.exit_time.isoformat(),
+            "gross_pnl_usd": round(t.gross_pnl, 8),
+            "net_pnl_usd": round(t.net_pnl, 8),
+            "r_multiple_net": round(t.net_pnl / t.risk_usd, 8) if t.risk_usd > 0 else 0.0,
+            "fee_usd": round(t.entry_fee + t.exit_fee, 8),
+            "funding_usd": round(t.funding, 8),
+            "cost_drag_usd": round((t.entry_fee + t.exit_fee + t.funding), 8),
+            "slippage_bps": float(slippage_bps),
+            "filled": True,
+            "order_type": "market",
+            "exit_reason": t.exit_reason,
+        }
+        for t in closed
+    ]
+
     return {
         "initial_balance": round(initial_balance, 4),
         "final_balance": round(cash, 4),
@@ -710,6 +733,7 @@ def simulate(
         "by_setup": group_stats(closed, "setup_id"),
         "by_regime": group_stats(closed, "regime"),
         "by_symbol": group_stats(closed, "symbol"),
+        "trade_evidence": trade_evidence,
     }
 
 

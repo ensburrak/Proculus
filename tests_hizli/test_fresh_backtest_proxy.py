@@ -303,7 +303,7 @@ def test_nested_validation_split_is_chronological_and_purges_late_labels() -> No
             market_id=f"m{index}",
             symbol="ZECUSD",
             signal_ts_ns=index * 100,
-            settled_ts_ns=(index * 100) + (250 if index == 5 else 50),
+            settled_ts_ns=(index * 100) + (450 if index == 5 else 50),
             trade_count=1,
             cost_basis_usd=2.5,
             realized_pnl_usd=1.0,

@@ -1,0 +1,55 @@
+name: Gamma Batch Probe
+
+on:
+  push:
+    branches:
+      - research/hizlitrade-profitability-host-20261003
+    paths:
+      - .github/workflows/gamma-batch-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe repeated Gamma slug filters
+        run: |
+          python - <<'PY'
+          import json, time, urllib.parse, urllib.request
+
+          now = int(time.time())
+          anchor5 = (now // 300) * 300
+          slugs = [
+              f"btc-updown-5m-{anchor5 - 300}",
+              f"btc-updown-5m-{anchor5 - 600}",
+          ]
+          params = [("slug", slug) for slug in slugs] + [("limit", "2")]
+          url = "https://gamma-api.polymarket.com/events?" + urllib.parse.urlencode(params)
+          req = urllib.request.Request(url, headers={"User-Agent":"hizlitrade-gamma-probe/1.0"})
+          with urllib.request.urlopen(req, timeout=20) as resp:
+              data = json.loads(resp.read().decode("utf-8"))
+          market_slugs = []
+          if isinstance(data, list):
+              for event in data:
+                  if not isinstance(event, dict):
+                      continue
+                  for market in event.get("markets") or []:
+                      if isinstance(market, dict):
+                          market_slugs.append(str(market.get("slug") or ""))
+          matched = sorted(set(slugs) & set(market_slugs))
+          print(json.dumps({
+              "requested": slugs,
+              "events_returned": len(data) if isinstance(data, list) else None,
+              "market_slugs": market_slugs,
+              "matched": matched,
+          }, indent=2))
+          if len(matched) != len(slugs):
+              raise SystemExit("Gamma repeated slug filters did not return every requested recent slug")
+          PY

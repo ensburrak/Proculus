@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from analyzer import get_multi_timeframe_analysis_async
 from .runtime_ta_pack import build_mtf_features, build_ta_pack_from_multidata, safe_last as _safe_last
 
 
@@ -38,6 +37,8 @@ def _populate_imbalance(item: dict[str, Any], orderbook: Any = None) -> dict[str
 
 
 async def _analyze_one(exchange: Any, symbol: str, tf_main: str = "15m", runtime_mode: str = "paper") -> dict[str, Any] | None:
+    from analyzer import get_multi_timeframe_analysis_async
+
     multi_data = await get_multi_timeframe_analysis_async(
         exchange,
         symbol,

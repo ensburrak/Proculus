@@ -831,6 +831,243 @@ def _development_exit_search(
     }
 
 
+
+def _trend_entry_profile_passes(
+    candidate: Candidate,
+    *,
+    frames: dict[str, pd.DataFrame],
+    profile: dict[str, Any],
+) -> bool:
+    if candidate.strategy != "trend_pullback_resumption":
+        return False
+    frame = frames.get(candidate.symbol)
+    if frame is None or candidate.decision_idx <= 0 or candidate.decision_idx >= len(frame):
+        return False
+    idx = int(candidate.decision_idx)
+    row = frame.iloc[idx]
+    prev = frame.iloc[idx - 1]
+    recent = frame.iloc[max(0, idx - 5): idx + 1]
+
+    close = f(row.get("close"))
+    fast = f(row.get("ema_fast"))
+    slow = f(row.get("ema_slow"))
+    adx = f(row.get("adx"))
+    h1_adx = f(row.get("adx_1h"))
+    h4_adx = f(row.get("adx_4h"))
+    rsi = f(row.get("rsi"))
+    vol_z = f(row.get("vol_z"))
+    prev_close = f(prev.get("close"))
+    if min(close, fast, slow) <= 0:
+        return False
+
+    if adx < float(profile.get("adx_min", 0.0)):
+        return False
+    if h1_adx < float(profile.get("h1_adx_min", 0.0)):
+        return False
+    if h4_adx < float(profile.get("h4_adx_min", 0.0)):
+        return False
+
+    gap_bps = abs(fast - slow) / close * 10_000.0
+    if gap_bps < float(profile.get("ema_gap_min_bps", 0.0)):
+        return False
+
+    vol_z_min = profile.get("vol_z_min")
+    if vol_z_min is not None and vol_z < float(vol_z_min):
+        return False
+    vol_z_max = profile.get("vol_z_max")
+    if vol_z_max is not None and vol_z > float(vol_z_max):
+        return False
+
+    reclaim = float(profile.get("reclaim_bps", 0.0)) / 10_000.0
+    mode = str(profile.get("mode") or "touch")
+    if candidate.side == "long":
+        rsi_min = float(profile.get("long_rsi_min", 0.0))
+        rsi_max = float(profile.get("long_rsi_max", 100.0))
+        if not (rsi_min <= rsi <= rsi_max):
+            return False
+        touched = float(recent["low"].min()) <= fast
+        reclaimed = close >= fast * (1.0 + reclaim)
+        crossed = prev_close <= fast and reclaimed
+    else:
+        rsi_min = float(profile.get("short_rsi_min", 0.0))
+        rsi_max = float(profile.get("short_rsi_max", 100.0))
+        if not (rsi_min <= rsi <= rsi_max):
+            return False
+        touched = float(recent["high"].max()) >= fast
+        reclaimed = close <= fast * (1.0 - reclaim)
+        crossed = prev_close >= fast and reclaimed
+
+    if mode == "cross":
+        return bool(crossed)
+    return bool(touched and reclaimed)
+
+
+def _filter_trend_entry_profile(
+    candidates: list[Candidate],
+    *,
+    frames: dict[str, pd.DataFrame],
+    profile: dict[str, Any],
+) -> list[Candidate]:
+    return [
+        candidate
+        for candidate in candidates
+        if _trend_entry_profile_passes(candidate, frames=frames, profile=profile)
+    ]
+
+
+def _development_entry_search(
+    *,
+    train_candidates: list[Candidate],
+    validation_candidates: list[Candidate],
+    oos_candidates: list[Candidate],
+    frames: dict[str, pd.DataFrame],
+    cfg: dict[str, Any],
+    initial_balance: float,
+    fee_bps: float,
+) -> dict[str, Any]:
+    profiles = [
+        {"name":"touch_adx22","mode":"touch","adx_min":22,"h1_adx_min":18,"h4_adx_min":18},
+        {"name":"touch_adx25_mtf20","mode":"touch","adx_min":25,"h1_adx_min":20,"h4_adx_min":20},
+        {"name":"touch_adx28_mtf22","mode":"touch","adx_min":28,"h1_adx_min":22,"h4_adx_min":22},
+        {"name":"cross_adx22","mode":"cross","adx_min":22,"h1_adx_min":18,"h4_adx_min":18},
+        {"name":"cross_adx25_mtf22","mode":"cross","adx_min":25,"h1_adx_min":22,"h4_adx_min":22},
+        {"name":"touch_reclaim10_adx25","mode":"touch","reclaim_bps":10,"adx_min":25,"h1_adx_min":20,"h4_adx_min":20},
+        {"name":"touch_reclaim20_adx25_mtf22","mode":"touch","reclaim_bps":20,"adx_min":25,"h1_adx_min":22,"h4_adx_min":22},
+        {"name":"touch_adx25_rsi_tight","mode":"touch","adx_min":25,"h1_adx_min":20,"h4_adx_min":20,
+         "long_rsi_min":45,"long_rsi_max":60,"short_rsi_min":40,"short_rsi_max":55},
+        {"name":"touch_adx25_vol0","mode":"touch","adx_min":25,"h1_adx_min":20,"h4_adx_min":20,"vol_z_min":0.0,"vol_z_max":2.5},
+        {"name":"touch_adx25_gap10","mode":"touch","adx_min":25,"h1_adx_min":20,"h4_adx_min":20,"ema_gap_min_bps":10},
+    ]
+
+    trials: list[dict[str, Any]] = []
+    validation_passers: list[dict[str, Any]] = []
+
+    for profile in profiles:
+        train = _filter_trend_entry_profile(train_candidates, frames=frames, profile=profile)
+        train5 = simulate(
+            candidates=train,
+            frames=frames,
+            initial_balance=initial_balance,
+            fee_bps=fee_bps,
+            slippage_bps=5.0,
+            cfg=cfg,
+        )
+        train15 = simulate(
+            candidates=train,
+            frames=frames,
+            initial_balance=initial_balance,
+            fee_bps=fee_bps,
+            slippage_bps=15.0,
+            cfg=cfg,
+        )
+        train_checks = {
+            "trades_5bps_gte_200": int(train5.get("trades", 0)) >= 200,
+            "pf_5bps_gte_1_10": float(train5.get("profit_factor", 0.0)) >= 1.10,
+            "expectancy_5bps_gte_0_03r": float(train5.get("expectancy_r", -999.0)) >= 0.03,
+            "pf_15bps_gte_1_00": float(train15.get("profit_factor", 0.0)) >= 1.00,
+            "expectancy_15bps_gte_0r": float(train15.get("expectancy_r", -999.0)) >= 0.0,
+        }
+        trial: dict[str, Any] = {
+            "profile": profile,
+            "train_candidate_count": len(train),
+            "train_5bps": compact_stats(train5),
+            "train_15bps": compact_stats(train15),
+            "train_checks": train_checks,
+            "train_pass": all(train_checks.values()),
+            "validation": None,
+            "validation_pass": False,
+        }
+
+        if trial["train_pass"]:
+            validation = _filter_trend_entry_profile(
+                validation_candidates,
+                frames=frames,
+                profile=profile,
+            )
+            val5 = simulate(
+                candidates=validation,
+                frames=frames,
+                initial_balance=initial_balance,
+                fee_bps=fee_bps,
+                slippage_bps=5.0,
+                cfg=cfg,
+            )
+            val15 = simulate(
+                candidates=validation,
+                frames=frames,
+                initial_balance=initial_balance,
+                fee_bps=fee_bps,
+                slippage_bps=15.0,
+                cfg=cfg,
+            )
+            val_checks = {
+                "trades_5bps_gte_100": int(val5.get("trades", 0)) >= 100,
+                "pf_5bps_gte_1_15": float(val5.get("profit_factor", 0.0)) >= 1.15,
+                "expectancy_5bps_gte_0_05r": float(val5.get("expectancy_r", -999.0)) >= 0.05,
+                "maxdd_5bps_lte_20pct": float(val5.get("max_drawdown_pct_realized", 999.0)) <= 20.0,
+                "pf_15bps_gte_1_05": float(val15.get("profit_factor", 0.0)) >= 1.05,
+                "expectancy_15bps_gte_0r": float(val15.get("expectancy_r", -999.0)) >= 0.0,
+            }
+            trial["validation"] = {
+                "candidate_count": len(validation),
+                "slippage_5bps": compact_stats(val5),
+                "slippage_15bps": compact_stats(val15),
+                "checks": val_checks,
+            }
+            trial["validation_pass"] = all(val_checks.values())
+            if trial["validation_pass"]:
+                validation_passers.append(trial)
+
+        trials.append(trial)
+        print("DEVELOPMENT_ENTRY_TRIAL=" + json.dumps(trial, ensure_ascii=False), flush=True)
+
+    selected = None
+    oos: dict[str, Any] = {}
+    if validation_passers:
+        validation_passers.sort(
+            key=lambda row: (
+                min(
+                    float(row["validation"]["slippage_5bps"]["profit_factor"]),
+                    float(row["validation"]["slippage_15bps"]["profit_factor"]),
+                ),
+                min(
+                    float(row["validation"]["slippage_5bps"]["expectancy_r"]),
+                    float(row["validation"]["slippage_15bps"]["expectancy_r"]),
+                ),
+                -float(row["validation"]["slippage_5bps"]["max_drawdown_pct_realized"]),
+            ),
+            reverse=True,
+        )
+        selected = dict(validation_passers[0]["profile"])
+        locked_oos = _filter_trend_entry_profile(
+            oos_candidates,
+            frames=frames,
+            profile=selected,
+        )
+        for bps in (5.0, 15.0):
+            name = f"slippage_{int(bps)}bps"
+            payload = simulate(
+                candidates=locked_oos,
+                frames=frames,
+                initial_balance=initial_balance,
+                fee_bps=fee_bps,
+                slippage_bps=bps,
+                cfg=cfg,
+            )
+            oos[name] = {
+                **compact_stats(payload),
+                "acceptance": acceptance_flags(payload),
+            }
+
+    return {
+        "scope": "trend entries only; baseline production exits retained",
+        "selection": "train -> validation -> retrospective holdout",
+        "profiles": trials,
+        "selected": selected,
+        "oos_locked_result": oos,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
@@ -882,6 +1119,14 @@ def main() -> int:
     development_candidates = [c for c in candidates if c.entry_time < development_cutoff]
     oos_candidates = [c for c in candidates if c.entry_time >= holdout_start]
 
+    validation_start = development_cutoff - pd.Timedelta(days=120)
+    train_cutoff = validation_start - pd.Timedelta(hours=48)
+    train_candidates = [c for c in candidates if c.entry_time < train_cutoff]
+    validation_candidates = [
+        c for c in candidates
+        if validation_start <= c.entry_time < development_cutoff
+    ]
+
     period_meta = {
         "data_start": data_start.isoformat(),
         "data_end": data_end.isoformat(),
@@ -892,8 +1137,23 @@ def main() -> int:
         "development_candidate_count": len(development_candidates),
         "oos_candidate_count": len(oos_candidates),
         "embargo_candidate_count": len(candidates) - len(development_candidates) - len(oos_candidates),
+        "research_train_end_exclusive": train_cutoff.isoformat(),
+        "validation_start": validation_start.isoformat(),
+        "validation_end_exclusive": development_cutoff.isoformat(),
+        "research_train_candidate_count": len(train_candidates),
+        "validation_candidate_count": len(validation_candidates),
     }
 
+
+    entry_research = _development_entry_search(
+        train_candidates=train_candidates,
+        validation_candidates=validation_candidates,
+        oos_candidates=oos_candidates,
+        frames=frames,
+        cfg=cfg,
+        initial_balance=args.initial_balance,
+        fee_bps=args.fee_bps,
+    )
 
     exit_research = _development_exit_search(
         development_candidates=development_candidates,
@@ -1008,6 +1268,7 @@ def main() -> int:
         "period_scenarios": period_scenarios,
         "oos_acceptance": acceptance,
         "development_exit_research": exit_research,
+        "development_entry_research": entry_research,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -1024,6 +1285,7 @@ def main() -> int:
                 "oos_holdout": {k: compact_stats(v) for k, v in period_scenarios["oos_holdout"].items()},
                 "oos_acceptance": acceptance,
                 "development_exit_research": exit_research,
+                "development_entry_research": entry_research,
             },
             ensure_ascii=False,
         ),

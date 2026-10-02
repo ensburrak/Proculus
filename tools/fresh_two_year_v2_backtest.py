@@ -18,6 +18,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import decision.official_pipeline as v2_pipeline
+from decision.stochrsi_parallel import (
+    compute_stochrsi90_series,
+    evaluate_stochrsi90,
+)
 from risk.stop_manager import calculate_dynamic_tp_sl
 
 OUT_DIR = ROOT / "scratch" / "fresh_proculus_two_year"
@@ -38,6 +42,9 @@ class Candidate:
     leverage: float
     atr: float
     decision_price: float
+    stop_atr_mult: float | None = None
+    tp_r_target: float | None = None
+    max_hold_bars: int | None = None
 
 
 @dataclass
@@ -169,6 +176,11 @@ def prepare_frame(symbol: str, data_dir: Path, days: int) -> pd.DataFrame:
         df[col] = dmi[col]
     df["atr_ratio"] = df["atr"] / df["close"].replace(0.0, np.nan)
     df["stoch_k"] = classic_stoch(df)
+    stoch90 = compute_stochrsi90_series(close)
+    df["stoch_rsi_90_k"] = stoch90["stoch_rsi_90_k"].reset_index(drop=True)
+    df["stoch_rsi_90_d"] = stoch90["stoch_rsi_90_d"].reset_index(drop=True)
+    df["stoch_rsi_90_prev_k"] = df["stoch_rsi_90_k"].shift(1)
+    df["stoch_rsi_90_prev_d"] = df["stoch_rsi_90_d"].shift(1)
     vol_mean = df["volume"].rolling(20, min_periods=20).mean().shift(1)
     vol_std = df["volume"].rolling(20, min_periods=20).std(ddof=0).shift(1)
     df["volume_spike_ratio"] = df["volume"] / vol_mean.replace(0.0, np.nan)
@@ -296,7 +308,7 @@ def build_item(symbol: str, row: pd.Series, recent: pd.DataFrame) -> dict[str, A
     }
 
 
-def generate_candidates(symbol: str, frame: pd.DataFrame) -> list[Candidate]:
+def generate_v2_candidates(symbol: str, frame: pd.DataFrame) -> list[Candidate]:
     candidates: list[Candidate] = []
     for idx in range(800, len(frame) - 1):
         row = frame.iloc[idx]
@@ -330,6 +342,97 @@ def generate_candidates(symbol: str, frame: pd.DataFrame) -> list[Candidate]:
     return candidates
 
 
+
+def generate_stochrsi90_candidates(
+    symbol: str,
+    frame: pd.DataFrame,
+    cfg: dict[str, Any],
+) -> list[Candidate]:
+    candidates: list[Candidate] = []
+    for idx in range(800, len(frame) - 1):
+        row = frame.iloc[idx]
+        k = f(row.get("stoch_rsi_90_k"), float("nan"))
+        d = f(row.get("stoch_rsi_90_d"), float("nan"))
+        prev_k = f(row.get("stoch_rsi_90_prev_k"), float("nan"))
+        prev_d = f(row.get("stoch_rsi_90_prev_d"), float("nan"))
+        if not all(math.isfinite(value) for value in (k, d, prev_k, prev_d)):
+            continue
+
+        ta = {
+            "stoch_rsi_warmup_ok": True,
+            "stoch_rsi_90_k": k,
+            "stoch_rsi_90_d": d,
+            "stoch_rsi_90_prev_k": prev_k,
+            "stoch_rsi_90_prev_d": prev_d,
+            "ema_fast": f(row.get("ema_fast")),
+            "ema_slow": f(row.get("ema_slow")),
+            "adx": f(row.get("adx")),
+            "plus_di": f(row.get("plus_di")),
+            "minus_di": f(row.get("minus_di")),
+            "atr_pct": f(row.get("atr_ratio")),
+            "volume_spike_ratio": f(row.get("volume_spike_ratio")),
+            "regime": str(row.get("regime") or "unknown"),
+        }
+        decision = evaluate_stochrsi90(
+            item={
+                "symbol": symbol,
+                "runtime_mode": "paper",
+                "regime": str(row.get("regime") or "unknown"),
+            },
+            ta=ta,
+            config=cfg,
+        )
+        if str(decision.get("action") or "").lower() != "enter":
+            continue
+        atr = f(row.get("atr"))
+        if atr <= 0:
+            continue
+
+        regime = str(decision.get("regime") or row.get("regime") or "unknown")
+        stop_mult = 0.9 if regime == "range" else 1.2
+        tp_r = 1.0 if regime == "range" else 1.2
+        max_hold_bars = 24 if regime == "range" else 32
+        candidates.append(
+            Candidate(
+                symbol=symbol,
+                decision_idx=idx,
+                entry_idx=idx + 1,
+                entry_time=pd.Timestamp(frame.iloc[idx + 1]["timestamp"]),
+                side=str(decision.get("direction")),
+                setup_id=str(decision.get("setup_id") or "stochrsi90.unknown"),
+                strategy="stochrsi90_independent",
+                regime=regime,
+                confidence=f(decision.get("confidence")),
+                risk_scale=f(decision.get("risk_scale"), 0.25),
+                leverage=1.0,
+                atr=atr,
+                decision_price=f(row.get("close")),
+                stop_atr_mult=stop_mult,
+                tp_r_target=tp_r,
+                max_hold_bars=max_hold_bars,
+            )
+        )
+    return candidates
+
+
+def collapse_independent_candidates(candidates: list[Candidate]) -> list[Candidate]:
+    grouped: dict[tuple[pd.Timestamp, str], list[Candidate]] = defaultdict(list)
+    for candidate in candidates:
+        grouped[(candidate.entry_time, candidate.symbol)].append(candidate)
+    selected: list[Candidate] = []
+    for key in sorted(grouped, key=lambda item: (item[0], item[1])):
+        bucket = grouped[key]
+        selected.append(
+            max(
+                bucket,
+                key=lambda candidate: (
+                    float(candidate.confidence),
+                    1 if candidate.strategy != "stochrsi90_independent" else 0,
+                ),
+            )
+        )
+    return selected
+
 def adverse_entry(raw: float, side: str, slip: float) -> float:
     return raw * (1.0 + slip) if side == "long" else raw * (1.0 - slip)
 
@@ -338,23 +441,66 @@ def adverse_exit(raw: float, side: str, slip: float) -> float:
     return raw * (1.0 - slip) if side == "long" else raw * (1.0 + slip)
 
 
-def find_exit(frame: pd.DataFrame, candidate: Candidate, entry_fill: float, slippage: float) -> tuple[pd.Timestamp, float, str, int, float, float]:
-    protection = calculate_dynamic_tp_sl(candidate.side, entry_fill, atr=candidate.atr)
-    stop = f(protection.get("stop_loss"))
-    target = f(protection.get("take_profit"))
-    max_end = min(len(frame) - 1, candidate.entry_idx + 192)
+def find_exit(
+    frame: pd.DataFrame,
+    candidate: Candidate,
+    entry_fill: float,
+    slippage: float,
+) -> tuple[pd.Timestamp, float, str, int, float, float]:
+    if candidate.strategy == "stochrsi90_independent":
+        stop_distance = candidate.atr * float(candidate.stop_atr_mult or 1.2)
+        target_distance = stop_distance * float(candidate.tp_r_target or 1.2)
+        if candidate.side == "long":
+            stop = entry_fill - stop_distance
+            target = entry_fill + target_distance
+        else:
+            stop = entry_fill + stop_distance
+            target = entry_fill - target_distance
+        hold_bars = int(candidate.max_hold_bars or 32)
+    else:
+        protection = calculate_dynamic_tp_sl(
+            candidate.side,
+            entry_fill,
+            atr=candidate.atr,
+        )
+        stop = f(protection.get("stop_loss"))
+        target = f(protection.get("take_profit"))
+        hold_bars = 192
+
+    max_end = min(len(frame) - 1, candidate.entry_idx + hold_bars)
     for idx in range(candidate.entry_idx, max_end + 1):
         row = frame.iloc[idx]
         hi, lo = f(row["high"]), f(row["low"])
         stop_hit = lo <= stop if candidate.side == "long" else hi >= stop
         target_hit = hi >= target if candidate.side == "long" else lo <= target
+        # Conservative same-candle ambiguity: stop wins.
         if stop_hit:
-            return pd.Timestamp(row["timestamp"]), adverse_exit(stop, candidate.side, slippage), "stop_loss", idx, stop, target
+            return (
+                pd.Timestamp(row["timestamp"]),
+                adverse_exit(stop, candidate.side, slippage),
+                "stop_loss",
+                idx,
+                stop,
+                target,
+            )
         if target_hit:
-            return pd.Timestamp(row["timestamp"]), adverse_exit(target, candidate.side, slippage), "take_profit", idx, stop, target
+            return (
+                pd.Timestamp(row["timestamp"]),
+                adverse_exit(target, candidate.side, slippage),
+                "take_profit",
+                idx,
+                stop,
+                target,
+            )
     row = frame.iloc[max_end]
-    return pd.Timestamp(row["timestamp"]), adverse_exit(f(row["close"]), candidate.side, slippage), "max_hold", max_end, stop, target
-
+    return (
+        pd.Timestamp(row["timestamp"]),
+        adverse_exit(f(row["close"]), candidate.side, slippage),
+        "max_hold",
+        max_end,
+        stop,
+        target,
+    )
 
 def group_stats(trades: list[OpenTrade], field: str) -> dict[str, Any]:
     buckets: dict[str, list[OpenTrade]] = defaultdict(list)
@@ -383,6 +529,7 @@ def simulate(
     initial_balance: float,
     fee_bps: float,
     slippage_bps: float,
+    max_open_positions: int = 1,
 ) -> dict[str, Any]:
     fee = fee_bps / 10_000.0
     slip = slippage_bps / 10_000.0
@@ -406,7 +553,7 @@ def simulate(
 
     for cand in sorted(candidates, key=lambda x: (x.entry_time, x.symbol, x.setup_id)):
         realize_until(cand.entry_time)
-        if len(positions) >= 2:
+        if len(positions) >= max(1, int(max_open_positions)):
             skipped["max_open_positions"] += 1
             continue
         if any(p.symbol == cand.symbol for p in positions):
@@ -509,14 +656,29 @@ def main() -> int:
     parser.add_argument("--initial-balance", type=float, default=10000.0)
     parser.add_argument("--fee-bps", type=float, default=5.0)
     parser.add_argument("--slippage-bps", default="5,15,50")
+    parser.add_argument(
+        "--modes",
+        default="v2_only,stochrsi90_only,combined_independent",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     v2_pipeline._load_config = lambda: cfg  # research replay cache, same config content
 
+    requested_modes = [
+        value.strip()
+        for value in str(args.modes).split(",")
+        if value.strip()
+    ]
+    allowed_modes = {"v2_only", "stochrsi90_only", "combined_independent"}
+    unknown_modes = set(requested_modes) - allowed_modes
+    if unknown_modes:
+        raise SystemExit(f"unsupported attribution modes: {sorted(unknown_modes)}")
+
     frames: dict[str, pd.DataFrame] = {}
-    candidates: list[Candidate] = []
+    v2_candidates: list[Candidate] = []
+    stoch_candidates: list[Candidate] = []
     paths = sorted(args.data_dir.glob("*_15m.parquet"))
     for idx, path in enumerate(paths, 1):
         symbol = symbol_from_path(path)
@@ -525,55 +687,120 @@ def main() -> int:
             if len(frame) < 1200:
                 continue
             frames[symbol] = frame
-            symbol_candidates = generate_candidates(symbol, frame)
-            candidates.extend(symbol_candidates)
-            print(f"[CANDIDATES {idx}/{len(paths)}] {symbol} bars={len(frame)} candidates={len(symbol_candidates)}", flush=True)
+            symbol_v2 = generate_v2_candidates(symbol, frame)
+            symbol_stoch = generate_stochrsi90_candidates(symbol, frame, cfg)
+            v2_candidates.extend(symbol_v2)
+            stoch_candidates.extend(symbol_stoch)
+            print(
+                f"[CANDIDATES {idx}/{len(paths)}] {symbol} bars={len(frame)} "
+                f"v2={len(symbol_v2)} stochrsi90={len(symbol_stoch)}",
+                flush=True,
+            )
         except Exception as exc:
             print(f"[SKIP] {symbol}: {type(exc).__name__}: {exc}", flush=True)
 
-    scenarios = {}
-    for raw in str(args.slippage_bps).split(","):
-        bps = float(raw.strip())
-        name = f"slippage_{int(bps)}bps"
-        scenarios[name] = simulate(
-            candidates=candidates,
-            frames=frames,
-            initial_balance=args.initial_balance,
-            fee_bps=args.fee_bps,
-            slippage_bps=bps,
-        )
-        print("FRESH_BACKTEST_SCENARIO=" + json.dumps({"scenario": name, **scenarios[name]}, ensure_ascii=False), flush=True)
+    candidates_by_mode: dict[str, list[Candidate]] = {
+        "v2_only": v2_candidates,
+        "stochrsi90_only": stoch_candidates,
+        "combined_independent": collapse_independent_candidates(
+            [*v2_candidates, *stoch_candidates]
+        ),
+    }
+
+    probe_cfg = (
+        ((cfg.get("pipeline_v2") or {}).get("learning_probe_mode") or {})
+        if isinstance(cfg.get("pipeline_v2"), dict)
+        else {}
+    )
+    max_open_positions = int(probe_cfg.get("max_concurrent_positions", 1) or 1)
+
+    scenarios: dict[str, dict[str, Any]] = {}
+    for mode in requested_modes:
+        scenarios[mode] = {}
+        for raw in str(args.slippage_bps).split(","):
+            bps = float(raw.strip())
+            scenario_name = f"slippage_{int(bps)}bps"
+            result = simulate(
+                candidates=candidates_by_mode[mode],
+                frames=frames,
+                initial_balance=args.initial_balance,
+                fee_bps=args.fee_bps,
+                slippage_bps=bps,
+                max_open_positions=max_open_positions,
+            )
+            scenarios[mode][scenario_name] = result
+            print(
+                "FRESH_BACKTEST_SCENARIO="
+                + json.dumps(
+                    {"mode": mode, "scenario": scenario_name, **result},
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
 
     report = {
-        "schema": "proculus-fresh-v2-two-year-v1",
+        "schema": "proculus-fresh-two-year-attribution-v2",
         "previous_backtests_used": False,
         "history_days": args.days,
         "bar": "15m",
         "symbols": sorted(frames),
         "symbol_count": len(frames),
-        "candidate_count": len(candidates),
+        "candidate_count": {
+            mode: len(candidates_by_mode[mode])
+            for mode in requested_modes
+        },
         "methodology": {
-            "decision_engine": "decision.official_pipeline.process_symbol_decision",
-            "edge_gate": "research override edge_validated=True to measure setup edge; production strict gate unchanged",
+            "v2_decision_engine": "decision.official_pipeline.process_symbol_decision",
+            "stochrsi_engine": "decision.stochrsi_parallel.evaluate_stochrsi90",
+            "stochrsi_math": "Wilder RSI90 -> StochRSI90 -> K3/D3; shared runtime/replay implementation",
+            "authority": "V2 and StochRSI90 remain independent until final same-symbol submit boundary",
+            "combined_collision_policy": "highest confidence wins only when both authorities target the same symbol and entry timestamp",
+            "edge_gate": "research override edge_validated=True for V2 setup-edge measurement; production strict gate unchanged",
             "ml_direction_authority": "disabled",
-            "meta_quality": "not enforced because no calibrated historical meta model is available",
+            "meta_quality": "not enforced because no calibrated point-in-time historical meta model is available",
             "entry": "next 15m open after closed-candle decision",
-            "max_open_positions": 2,
-            "risk_per_trade_pct": 0.25,
-            "wallet_cap_pct": 20.0,
+            "max_open_positions": max_open_positions,
+            "base_risk_per_trade_pct": 0.25,
             "funding_assumption": "1 bp per 8h, conservative cost",
             "same_bar_priority": "stop before target",
             "lookahead": "1h/4h values become available only after higher-timeframe candle close",
+            "stochrsi_live_orders": False,
         },
         "scenarios": scenarios,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    print("FRESH_BACKTEST_SUMMARY=" + json.dumps({
-        "symbol_count": report["symbol_count"],
-        "candidate_count": report["candidate_count"],
-        "scenarios": {k: {m: v[m] for m in ("return_pct","max_drawdown_pct_realized","trades","win_rate_pct","profit_factor","expectancy_r")} for k, v in scenarios.items()},
-    }, ensure_ascii=False), flush=True)
+    args.output.write_text(
+        json.dumps(report, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    compact: dict[str, Any] = {}
+    for mode, mode_scenarios in scenarios.items():
+        compact[mode] = {
+            name: {
+                metric: payload[metric]
+                for metric in (
+                    "return_pct",
+                    "max_drawdown_pct_realized",
+                    "trades",
+                    "win_rate_pct",
+                    "profit_factor",
+                    "expectancy_r",
+                )
+            }
+            for name, payload in mode_scenarios.items()
+        }
+    print(
+        "FRESH_BACKTEST_SUMMARY="
+        + json.dumps(
+            {
+                "symbol_count": report["symbol_count"],
+                "candidate_count": report["candidate_count"],
+                "scenarios": compact,
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
     return 0
 
 

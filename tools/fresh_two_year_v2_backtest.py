@@ -326,17 +326,31 @@ def prefilter(row: pd.Series, recent: pd.DataFrame) -> bool:
         tf_close = f(row.get(f"close_{tf}"))
         tf_fast = f(row.get(f"ema_fast_{tf}"))
         tf_slow = f(row.get(f"ema_slow_{tf}"))
-        tf_ema200 = f(row.get(f"ema200_{tf}"))
-        tf_macd = f(row.get(f"macd_{tf}"))
+        raw_ema200 = row.get(f"ema200_{tf}")
+        tf_ema200 = (
+            float(raw_ema200)
+            if raw_ema200 is not None and pd.notna(raw_ema200) and math.isfinite(float(raw_ema200))
+            else None
+        )
+        raw_macd = row.get(f"macd_{tf}")
+        tf_macd = (
+            float(raw_macd)
+            if raw_macd is not None and pd.notna(raw_macd) and math.isfinite(float(raw_macd))
+            else None
+        )
         if side == "long":
-            if not (tf_close >= tf_slow and tf_fast > tf_slow and tf_close > tf_ema200):
+            if not (tf_close >= tf_slow and tf_fast > tf_slow):
                 return False
-            if require_momentum and tf_macd < 0.0:
+            if tf_ema200 is not None and not (tf_close > tf_ema200):
+                return False
+            if require_momentum and tf_macd is not None and tf_macd < 0.0:
                 return False
         else:
-            if not (tf_close <= tf_slow and tf_fast < tf_slow and tf_close < tf_ema200):
+            if not (tf_close <= tf_slow and tf_fast < tf_slow):
                 return False
-            if require_momentum and tf_macd > 0.0:
+            if tf_ema200 is not None and not (tf_close < tf_ema200):
+                return False
+            if require_momentum and tf_macd is not None and tf_macd > 0.0:
                 return False
 
     recent5 = recent.tail(5)

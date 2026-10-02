@@ -456,6 +456,16 @@ def generate_candidates(
         frozen_primary = (
             (regime == "bull" and "bull_trend.pullback.long.15m.v2" in frozen)
             or (regime == "bear" and "bear_trend.pullback.short.15m.v2" in frozen)
+            or (
+                regime == "range"
+                and "range_revert.low_band_rejection.long.15m.v2" in frozen
+                and "range_revert.high_band_rejection.short.15m.v2" in frozen
+            )
+            or (
+                regime == "compression"
+                and "compression_breakout.up_retest.long.15m.v2" in frozen
+                and "compression_breakout.down_retest.short.15m.v2" in frozen
+            )
         )
         primary_possible = (not frozen_primary) and prefilter(row, recent)
         stoch_possible = bool(include_stochrsi) and _stoch_cross_prefilter(row)

@@ -18,7 +18,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 OKX_BASE = "https://www.okx.com"
 HISTORY_PATH = "/api/v5/market/history-candles"
-HISTORY_LIMIT = 100
+HISTORY_LIMIT = 300
 
 
 class RateLimiter:

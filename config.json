@@ -900,6 +900,11 @@
     "allow_edge_cold_start": false,
     "edge_cold_start_size_scale": 0.25,
     "edge_size_scale_leverage_cap_enabled": true,
+    "cross_sectional_ranking": {
+      "enabled": true,
+      "top_fraction": 0.15,
+      "min_candidates": 2
+    },
     "allow_llm_technical_fallback": false,
     "allow_llm_technical_fallback_in_no_trade_regime": false,
     "llm_technical_fallback_min_confidence": 0.68,

@@ -9,6 +9,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -383,14 +384,45 @@ def simulate(
     initial_balance: float,
     fee_bps: float,
     slippage_bps: float,
+    cfg: dict[str, Any],
 ) -> dict[str, Any]:
     fee = fee_bps / 10_000.0
     slip = slippage_bps / 10_000.0
+    trade_cfg = cfg.get("trade_parameters") if isinstance(cfg.get("trade_parameters"), dict) else {}
+    risk_cfg = cfg.get("risk") if isinstance(cfg.get("risk"), dict) else {}
+    max_positions = int(trade_cfg.get("max_open_positions", 2) or 2)
+    cooldown_min = int(trade_cfg.get("trade_cooldown_min", 39) or 39)
+    daily_limit_pct = float(risk_cfg.get("daily_loss_limit_pct", 0.005) or 0.005)
+    weekly_limit_pct = float(risk_cfg.get("weekly_loss_limit_pct", 0.02) or 0.02)
+    reduce_threshold = float((risk_cfg.get("daily_limits") or {}).get("reduce_risk_threshold", 0.50) or 0.50)
+    hedge_threshold = float((risk_cfg.get("daily_limits") or {}).get("hedge_only_threshold", 0.75) or 0.75)
+    tz = ZoneInfo(str(risk_cfg.get("daily_loss_timezone") or "Europe/Istanbul"))
+
     cash = float(initial_balance)
     positions: list[OpenTrade] = []
     closed: list[OpenTrade] = []
     skipped = defaultdict(int)
     equity_points = [cash]
+    last_entry: dict[str, pd.Timestamp] = {}
+    daily_realized: dict[str, float] = defaultdict(float)
+    weekly_realized: dict[str, float] = defaultdict(float)
+
+    def local_keys(ts: pd.Timestamp) -> tuple[str, str]:
+        local = ts.tz_convert(tz)
+        return local.strftime("%Y-%m-%d"), local.strftime("%Y-W%W")
+
+    def mark_equity(ts: pd.Timestamp) -> float:
+        equity = cash
+        for pos in positions:
+            frame = frames[pos.symbol]
+            idx = int(frame["timestamp"].searchsorted(ts, side="right")) - 1
+            if idx < 0:
+                continue
+            price = float(frame.iloc[min(idx, len(frame) - 1)]["close"])
+            qty = pos.notional / max(pos.entry_price, 1e-12)
+            sign = 1.0 if pos.side == "long" else -1.0
+            equity += (price - pos.entry_price) * qty * sign
+        return equity
 
     def realize_until(ts: pd.Timestamp) -> None:
         nonlocal cash, positions
@@ -399,6 +431,9 @@ def simulate(
             if pos.exit_time <= ts:
                 cash += pos.gross_pnl - pos.exit_fee - pos.funding
                 closed.append(pos)
+                day_key, week_key = local_keys(pos.exit_time)
+                daily_realized[day_key] += pos.net_pnl
+                weekly_realized[week_key] += pos.net_pnl
                 equity_points.append(cash)
             else:
                 remaining.append(pos)
@@ -406,7 +441,38 @@ def simulate(
 
     for cand in sorted(candidates, key=lambda x: (x.entry_time, x.symbol, x.setup_id)):
         realize_until(cand.entry_time)
-        if len(positions) >= 2:
+        equity = max(0.0, mark_equity(cand.entry_time))
+        if equity <= 0.0:
+            skipped["equity_depleted"] += 1
+            continue
+
+        day_key, week_key = local_keys(cand.entry_time)
+        daily_loss = abs(min(daily_realized.get(day_key, 0.0), 0.0))
+        weekly_loss = abs(min(weekly_realized.get(week_key, 0.0), 0.0))
+        daily_limit_abs = equity * daily_limit_pct
+        weekly_limit_abs = equity * weekly_limit_pct
+        daily_progress = daily_loss / daily_limit_abs if daily_limit_abs > 0 else 0.0
+        weekly_progress = weekly_loss / weekly_limit_abs if weekly_limit_abs > 0 else 0.0
+
+        if weekly_progress >= 1.0:
+            skipped["weekly_loss_stop"] += 1
+            continue
+        if daily_progress >= 1.0:
+            skipped["daily_loss_stop"] += 1
+            continue
+        if daily_progress >= hedge_threshold:
+            # Runtime enters hedge-only. Historical replay has no hedge book,
+            # therefore new directional alpha entries are blocked.
+            skipped["daily_hedge_only"] += 1
+            continue
+
+        risk_multiplier = 0.5 if (daily_progress >= reduce_threshold or weekly_progress >= 0.75) else 1.0
+
+        prior = last_entry.get(cand.symbol)
+        if prior is not None and (cand.entry_time - prior).total_seconds() < cooldown_min * 60:
+            skipped["trade_cooldown"] += 1
+            continue
+        if len(positions) >= max_positions:
             skipped["max_open_positions"] += 1
             continue
         if any(p.symbol == cand.symbol for p in positions):
@@ -424,14 +490,15 @@ def simulate(
         entry = adverse_entry(raw_open, cand.side, slip)
         stop_distance = max(cand.atr * 1.5, entry * 0.001)
         stop_pct = stop_distance / entry
-        risk_budget = cash * 0.0025 * cand.risk_scale
+        effective_scale = cand.risk_scale * risk_multiplier
+        risk_budget = equity * 0.0025 * effective_scale
         notional = min(
             risk_budget / max(stop_pct, 1e-9),
-            cash * 0.20 * cand.leverage,
+            equity * 0.20 * cand.leverage * effective_scale,
         )
         margin = notional / max(cand.leverage, 1.0)
         used_margin = sum(p.notional / max(p.leverage, 1.0) for p in positions)
-        if notional <= 0 or used_margin + margin > cash * 0.95:
+        if notional <= 0 or used_margin + margin > equity * 0.95:
             skipped["margin_cap"] += 1
             continue
 
@@ -469,7 +536,8 @@ def simulate(
                 exit_reason=reason,
             )
         )
-        equity_points.append(cash)
+        last_entry[cand.symbol] = cand.entry_time
+        equity_points.append(mark_equity(cand.entry_time))
 
     realize_until(pd.Timestamp.max.tz_localize("UTC"))
     pnls = [t.net_pnl for t in closed]
@@ -496,6 +564,14 @@ def simulate(
         "fees_paid": round(sum(t.entry_fee + t.exit_fee for t in closed), 4),
         "funding_paid": round(sum(t.funding for t in closed), 4),
         "skipped_entries": dict(sorted(skipped.items())),
+        "risk_controls": {
+            "max_open_positions": max_positions,
+            "trade_cooldown_min": cooldown_min,
+            "daily_loss_limit_pct": daily_limit_pct,
+            "weekly_loss_limit_pct": weekly_limit_pct,
+            "daily_reduce_threshold": reduce_threshold,
+            "daily_hedge_only_threshold": hedge_threshold,
+        },
         "by_setup": group_stats(closed, "setup_id"),
         "by_regime": group_stats(closed, "regime"),
         "by_symbol": group_stats(closed, "symbol"),
@@ -541,6 +617,7 @@ def main() -> int:
             initial_balance=args.initial_balance,
             fee_bps=args.fee_bps,
             slippage_bps=bps,
+            cfg=cfg,
         )
         print("FRESH_BACKTEST_SCENARIO=" + json.dumps({"scenario": name, **scenarios[name]}, ensure_ascii=False), flush=True)
 
@@ -558,7 +635,10 @@ def main() -> int:
             "ml_direction_authority": "disabled",
             "meta_quality": "not enforced because no calibrated historical meta model is available",
             "entry": "next 15m open after closed-candle decision",
-            "max_open_positions": 2,
+            "max_open_positions": int((cfg.get("trade_parameters") or {}).get("max_open_positions", 2)),
+            "trade_cooldown_min": int((cfg.get("trade_parameters") or {}).get("trade_cooldown_min", 39)),
+            "daily_loss_limit_pct": float((cfg.get("risk") or {}).get("daily_loss_limit_pct", 0.005)),
+            "weekly_loss_limit_pct": float((cfg.get("risk") or {}).get("weekly_loss_limit_pct", 0.02) or 0.02),
             "risk_per_trade_pct": 0.25,
             "wallet_cap_pct": 20.0,
             "funding_assumption": "1 bp per 8h, conservative cost",

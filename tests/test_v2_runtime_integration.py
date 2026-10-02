@@ -69,6 +69,19 @@ def test_controller_async_freezes_negative_oos_trend_probe() -> None:
     assert decision["learning_probe"]["frozen"] is True
 
 
+def test_all_tracked_v2_setups_are_frozen_until_new_edge_is_validated() -> None:
+    cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    probe = cfg["pipeline_v2"]["learning_probe_mode"]
+    tracked = set(probe["tracked_setups"])
+    frozen = set(probe["frozen_setups"])
+
+    assert tracked
+    assert tracked.issubset(frozen)
+    assert cfg["strategy_release"]["allowed_setup_ids"] == []
+    assert cfg["strategy_release"]["allow_live"] is False
+    assert cfg["strategy_release"]["allow_testnet"] is False
+
+
 def test_paper_learning_probe_freezes_negative_range_setup() -> None:
     item = {
         "symbol": "ETH/USDT",

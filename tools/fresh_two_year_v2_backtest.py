@@ -408,13 +408,22 @@ def generate_candidates(symbol: str, frame: pd.DataFrame) -> list[Candidate]:
                     )
                 )
 
-    best: dict[tuple[pd.Timestamp, str], Candidate] = {}
+    # Runtime contract: the primary V2 lane owns the symbol slot. The
+    # independent StochRSI lane may act only when primary did not emit ENTER.
+    selected: dict[tuple[pd.Timestamp, str], Candidate] = {}
     for candidate in candidates:
         key=(candidate.entry_time, candidate.symbol)
-        previous=best.get(key)
-        if previous is None or candidate.confidence > previous.confidence:
-            best[key]=candidate
-    return sorted(best.values(), key=lambda x: (x.entry_time, x.symbol, x.setup_id))
+        previous=selected.get(key)
+        if previous is None:
+            selected[key]=candidate
+            continue
+        previous_is_stoch = previous.strategy == "stochrsi_opportunity"
+        candidate_is_stoch = candidate.strategy == "stochrsi_opportunity"
+        if previous_is_stoch and not candidate_is_stoch:
+            selected[key]=candidate
+        elif previous_is_stoch == candidate_is_stoch and candidate.confidence > previous.confidence:
+            selected[key]=candidate
+    return sorted(selected.values(), key=lambda x: (x.entry_time, x.symbol, x.setup_id))
 
 
 def adverse_entry(raw: float, side: str, slip: float) -> float:

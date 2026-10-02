@@ -36,6 +36,34 @@ def _populate_imbalance(item: dict[str, Any], orderbook: Any = None) -> dict[str
     return item
 
 
+def _latest_market_bar(multi_data: dict[str, Any], tf_main: str) -> dict[str, Any]:
+    df = None
+    for key, value in (multi_data or {}).items():
+        if str(key).lower() == str(tf_main).lower():
+            df = value
+            break
+    if df is None or getattr(df, "empty", True):
+        return {}
+
+    timestamp = None
+    try:
+        if "timestamp" in getattr(df, "columns", []):
+            raw = df["timestamp"].iloc[-1]
+        else:
+            raw = df.index[-1]
+        timestamp = raw.isoformat() if hasattr(raw, "isoformat") else str(raw)
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        timestamp = None
+
+    return {
+        "timestamp": timestamp,
+        "open": _safe_last(df, "open"),
+        "high": _safe_last(df, "high"),
+        "low": _safe_last(df, "low"),
+        "close": _safe_last(df, "close"),
+    }
+
+
 async def _analyze_one(exchange: Any, symbol: str, tf_main: str = "15m", runtime_mode: str = "paper") -> dict[str, Any] | None:
     from analyzer import get_multi_timeframe_analysis_async
 
@@ -62,4 +90,5 @@ async def _analyze_one(exchange: Any, symbol: str, tf_main: str = "15m", runtime
         "ta_pack": ta_pack,
         "mtf_features": mtf,
         "mtf_data": multi_data,
+        "market_bar": _latest_market_bar(multi_data, tf_main),
     }

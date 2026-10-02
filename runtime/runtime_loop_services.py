@@ -9,6 +9,7 @@ from core.decision_pipeline import DecisionPipeline
 from .execution_bridge import execute_decision
 from .runtime_analysis_services import _analyze_one
 from .stochrsi_parallel import build_stochrsi_parallel_decision
+from .runtime_symbol_universe import resolve_runtime_symbols
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -73,7 +74,14 @@ async def trading_loop_async_service(exchange: Any, symbols: list[str], *, runti
 
 
 async def trading_loop_async(exchange: Any, symbols: list[str] | None = None, *, runtime_mode: str = "paper", once: bool = False):
-    return await trading_loop_async_service(exchange, symbols or ["BTC/USDT", "ETH/USDT", "SOL/USDT"], runtime_mode=runtime_mode, once=once)
+    cfg = _load_config()
+    resolved_symbols = list(symbols) if symbols else await resolve_runtime_symbols(exchange, cfg)
+    return await trading_loop_async_service(
+        exchange,
+        resolved_symbols,
+        runtime_mode=runtime_mode,
+        once=once,
+    )
 
 
 def _noop(*args: Any, **kwargs: Any) -> None:

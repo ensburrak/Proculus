@@ -239,3 +239,43 @@ def test_runtime_exposes_stochrsi_as_parallel_authority_without_overwriting_v2(
     assert decision["parallel_decisions"]["stochrsi"]["pipeline"] == "stochrsi_parallel"
     assert decision["parallel_decisions"]["stochrsi"]["authority"] == "independent"
     assert decision["parallel_decisions"]["stochrsi"]["execution"]["order_sent"] is False
+
+
+
+def test_combined_backtest_only_arbitrates_at_final_same_symbol_boundary() -> None:
+    import pandas as pd
+
+    from tools.fresh_two_year_v2_backtest import (
+        Candidate,
+        collapse_independent_candidates,
+    )
+
+    when = pd.Timestamp("2026-01-01T00:15:00Z")
+    common = {
+        "symbol": "BTC/USDT:USDT",
+        "decision_idx": 10,
+        "entry_idx": 11,
+        "entry_time": when,
+        "side": "long",
+        "regime": "bull",
+        "risk_scale": 0.25,
+        "leverage": 1.0,
+        "atr": 1.0,
+        "decision_price": 100.0,
+    }
+    v2 = Candidate(
+        **common,
+        setup_id="bull_trend.pullback.long.15m.v2",
+        strategy="trend_pullback",
+        confidence=0.74,
+    )
+    stoch = Candidate(
+        **common,
+        setup_id="stochrsi90.bull.long.15m.v1",
+        strategy="stochrsi90_independent",
+        confidence=0.81,
+    )
+
+    selected = collapse_independent_candidates([v2, stoch])
+
+    assert selected == [stoch]

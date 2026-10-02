@@ -265,7 +265,59 @@ def prefilter(row: pd.Series, recent: pd.DataFrame) -> bool:
         prev_low = float(recent["low"].iloc[-5:-1].min())
         close = f(row.get("close"))
         return close > prev_high or close < prev_low
-    return True
+
+    if regime not in {"bull", "bear"} or len(recent) < 2:
+        return False
+
+    side = "long" if regime == "bull" else "short"
+    close = f(row.get("close"))
+    prev_close = f(recent["close"].iloc[-2])
+    fast = f(row.get("ema_fast"))
+    slow = f(row.get("ema_slow"))
+    adx = f(row.get("adx"))
+    rsi = f(row.get("rsi"))
+    atr = f(row.get("atr_ratio"))
+    vol_z = f(row.get("vol_z"))
+
+    if adx < 20.0 or adx > 48.0:
+        return False
+    if atr < 0.001 or atr > 0.04:
+        return False
+    if abs(vol_z) >= 3.0:
+        return False
+
+    if side == "long":
+        if not (fast > slow and close >= slow and 42.0 <= rsi <= 66.0):
+            return False
+    else:
+        if not (fast < slow and close <= slow and 34.0 <= rsi <= 58.0):
+            return False
+
+    for tf, require_momentum in (("1h", False), ("4h", True)):
+        tf_close = f(row.get(f"close_{tf}"))
+        tf_fast = f(row.get(f"ema_fast_{tf}"))
+        tf_slow = f(row.get(f"ema_slow_{tf}"))
+        tf_ema200 = f(row.get(f"ema200_{tf}"))
+        tf_macd = f(row.get(f"macd_{tf}"))
+        if side == "long":
+            if not (tf_close >= tf_slow and tf_fast > tf_slow and tf_close > tf_ema200):
+                return False
+            if require_momentum and tf_macd < 0.0:
+                return False
+        else:
+            if not (tf_close <= tf_slow and tf_fast < tf_slow and tf_close < tf_ema200):
+                return False
+            if require_momentum and tf_macd > 0.0:
+                return False
+
+    recent5 = recent.tail(5)
+    if side == "long":
+        pullback = float(recent5["low"].min()) <= fast * 1.004 or close <= fast * 1.004
+        resumed = close >= fast and close > prev_close
+    else:
+        pullback = float(recent5["high"].max()) >= fast * 0.996 or close >= fast * 0.996
+        resumed = close <= fast and close < prev_close
+    return bool(pullback and resumed)
 
 
 def build_item(symbol: str, row: pd.Series, recent: pd.DataFrame) -> dict[str, Any]:

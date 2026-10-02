@@ -72,7 +72,7 @@ def _candidate_side(
     return None, None
 
 
-def compute_stochrsi90_snapshot(close_values: Any) -> dict[str, Any]:
+def compute_stochrsi90_series(close_values: Any) -> pd.DataFrame:
     values: list[float] = []
     try:
         iterable = list(close_values)
@@ -80,16 +80,7 @@ def compute_stochrsi90_snapshot(close_values: Any) -> dict[str, Any]:
         iterable = []
     for raw in iterable:
         parsed = _f(raw)
-        if parsed is not None:
-            values.append(parsed)
-
-    # Wilder RSI(90) + StochRSI(90) + K(3) + D(3) needs roughly 184
-    # closed observations before two fully-smoothed K/D points exist.
-    if len(values) < 185:
-        return {
-            "stoch_rsi_warmup_ok": False,
-            "stoch_rsi_reason": "stochrsi90_insufficient_closed_candles",
-        }
+        values.append(parsed if parsed is not None else float("nan"))
 
     close = pd.Series(values, dtype="float64")
     delta = close.diff()
@@ -106,8 +97,21 @@ def compute_stochrsi90_snapshot(close_values: Any) -> dict[str, Any]:
     raw = ((rsi - low) / width) * 100.0
     k = raw.rolling(3, min_periods=3).mean().clip(0.0, 100.0)
     d = k.rolling(3, min_periods=3).mean().clip(0.0, 100.0)
+    return pd.DataFrame({"stoch_rsi_90_k": k, "stoch_rsi_90_d": d})
 
-    points = pd.DataFrame({"k": k, "d": d}).dropna()
+
+def compute_stochrsi90_snapshot(close_values: Any) -> dict[str, Any]:
+    try:
+        count = len(close_values)
+    except (TypeError, AttributeError):
+        count = 0
+    if count < 185:
+        return {
+            "stoch_rsi_warmup_ok": False,
+            "stoch_rsi_reason": "stochrsi90_insufficient_closed_candles",
+        }
+
+    points = compute_stochrsi90_series(close_values).dropna()
     if len(points) < 2:
         return {
             "stoch_rsi_warmup_ok": False,
@@ -119,12 +123,11 @@ def compute_stochrsi90_snapshot(close_values: Any) -> dict[str, Any]:
     return {
         "stoch_rsi_warmup_ok": True,
         "stoch_rsi_reason": "ok",
-        "stoch_rsi_90_prev_k": float(previous["k"]),
-        "stoch_rsi_90_prev_d": float(previous["d"]),
-        "stoch_rsi_90_k": float(current["k"]),
-        "stoch_rsi_90_d": float(current["d"]),
+        "stoch_rsi_90_prev_k": float(previous["stoch_rsi_90_k"]),
+        "stoch_rsi_90_prev_d": float(previous["stoch_rsi_90_d"]),
+        "stoch_rsi_90_k": float(current["stoch_rsi_90_k"]),
+        "stoch_rsi_90_d": float(current["stoch_rsi_90_d"]),
     }
-
 
 def evaluate_stochrsi90(
     *,
@@ -303,4 +306,4 @@ def evaluate_stochrsi90(
     }
 
 
-__all__ = ["compute_stochrsi90_snapshot", "evaluate_stochrsi90"]
+__all__ = ["compute_stochrsi90_series", "compute_stochrsi90_snapshot", "evaluate_stochrsi90"]

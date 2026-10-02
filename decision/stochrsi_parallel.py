@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 CONFIG_FILE = Path(__file__).resolve().parents[1] / "config.json"
 
 
@@ -68,6 +70,60 @@ def _candidate_side(
         if short_cross:
             return "short", "stochrsi90_cross_down"
     return None, None
+
+
+def compute_stochrsi90_snapshot(close_values: Any) -> dict[str, Any]:
+    values: list[float] = []
+    try:
+        iterable = list(close_values)
+    except TypeError:
+        iterable = []
+    for raw in iterable:
+        parsed = _f(raw)
+        if parsed is not None:
+            values.append(parsed)
+
+    # Wilder RSI(90) + StochRSI(90) + K(3) + D(3) needs roughly 184
+    # closed observations before two fully-smoothed K/D points exist.
+    if len(values) < 185:
+        return {
+            "stoch_rsi_warmup_ok": False,
+            "stoch_rsi_reason": "stochrsi90_insufficient_closed_candles",
+        }
+
+    close = pd.Series(values, dtype="float64")
+    delta = close.diff()
+    gain = delta.clip(lower=0.0).fillna(0.0)
+    loss = (-delta.clip(upper=0.0)).fillna(0.0)
+    avg_gain = gain.ewm(alpha=1.0 / 90.0, adjust=False, min_periods=90).mean()
+    avg_loss = loss.ewm(alpha=1.0 / 90.0, adjust=False, min_periods=90).mean()
+    rs = avg_gain / avg_loss.replace(0.0, float("nan"))
+    rsi = 100.0 - (100.0 / (1.0 + rs))
+
+    low = rsi.rolling(90, min_periods=90).min()
+    high = rsi.rolling(90, min_periods=90).max()
+    width = (high - low).replace(0.0, float("nan"))
+    raw = ((rsi - low) / width) * 100.0
+    k = raw.rolling(3, min_periods=3).mean().clip(0.0, 100.0)
+    d = k.rolling(3, min_periods=3).mean().clip(0.0, 100.0)
+
+    points = pd.DataFrame({"k": k, "d": d}).dropna()
+    if len(points) < 2:
+        return {
+            "stoch_rsi_warmup_ok": False,
+            "stoch_rsi_reason": "stochrsi90_not_fully_smoothed",
+        }
+
+    previous = points.iloc[-2]
+    current = points.iloc[-1]
+    return {
+        "stoch_rsi_warmup_ok": True,
+        "stoch_rsi_reason": "ok",
+        "stoch_rsi_90_prev_k": float(previous["k"]),
+        "stoch_rsi_90_prev_d": float(previous["d"]),
+        "stoch_rsi_90_k": float(current["k"]),
+        "stoch_rsi_90_d": float(current["d"]),
+    }
 
 
 def evaluate_stochrsi90(
@@ -141,8 +197,17 @@ def evaluate_stochrsi90(
     score = 0.40
     reasons = [str(signal_reason)]
 
-    ema_fast = _f(ta_dict.get("ema_fast"))
-    ema_slow = _f(ta_dict.get("ema_slow"))
+    ema_row = ta_dict.get("ema") if isinstance(ta_dict.get("ema"), dict) else {}
+    ema_fast = _f(
+        ta_dict.get("ema_fast")
+        if ta_dict.get("ema_fast") is not None
+        else ema_row.get("fast")
+    )
+    ema_slow = _f(
+        ta_dict.get("ema_slow")
+        if ta_dict.get("ema_slow") is not None
+        else ema_row.get("slow")
+    )
     if ema_fast is not None and ema_slow is not None:
         aligned = (side == "long" and ema_fast >= ema_slow) or (
             side == "short" and ema_fast <= ema_slow
@@ -238,4 +303,4 @@ def evaluate_stochrsi90(
     }
 
 
-__all__ = ["evaluate_stochrsi90"]
+__all__ = ["compute_stochrsi90_snapshot", "evaluate_stochrsi90"]

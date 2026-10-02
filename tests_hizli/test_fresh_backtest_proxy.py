@@ -252,3 +252,44 @@ def test_batch_price_history_reuses_immutable_token_cache(tmp_path: Path, monkey
         workers=2,
     )
     assert second == first
+
+
+def test_gamma_successful_batch_does_not_refetch_absent_slugs_one_by_one(monkeypatch) -> None:
+    present = "btc-updown-5m-100"
+    absent = "btc-updown-5m-200"
+    fallback_calls = 0
+
+    def fake_fetch(url: str, attempts: int = 5):
+        del attempts
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        requested = query.get("slug", [])
+        assert present in requested
+        assert absent in requested
+        return [
+            {
+                "markets": [
+                    {
+                        "slug": present,
+                        "closed": True,
+                        "outcomes": '["Up", "Down"]',
+                        "outcomePrices": '["1", "0"]',
+                    }
+                ]
+            }
+        ]
+
+    def fallback(_slug: str):
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return None
+
+    monkeypatch.setattr(_MODULE, "fetch_json", fake_fetch)
+    monkeypatch.setattr(_MODULE, "gamma_market_for_slug", fallback)
+
+    result = _MODULE.gamma_markets_for_slugs(
+        {present, absent},
+        workers=2,
+    )
+
+    assert set(result) == {present}
+    assert fallback_calls == 0

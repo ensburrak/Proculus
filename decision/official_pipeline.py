@@ -156,6 +156,26 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
     if expert.direction not in policy["directions"]:
         return _hold(symbol, regime, "expert direction rejected by regime policy")
 
+    if probe_active:
+        tracked_raw = probe_cfg.get("tracked_setups")
+        tracked_setups = {
+            str(value)
+            for value in tracked_raw
+            if str(value)
+        } if isinstance(tracked_raw, list) else set()
+        if tracked_setups and expert.setup_id not in tracked_setups:
+            return _hold(
+                symbol,
+                regime,
+                "learning probe setup not tracked",
+                candidate_setup=expert.to_dict(),
+                learning_probe={
+                    "active": True,
+                    "tracked": False,
+                    "target_trades_per_setup": int(probe_cfg.get("target_trades_per_setup", 0) or 0),
+                },
+            )
+
     strict_edge = bool(pipeline.get("strict_edge_evidence", True))
     edge_ok = _edge_validated(item)
     cold_start = bool(pipeline.get("allow_edge_cold_start", False)) and runtime_mode in {"paper", "sim", "demo", "dry-run", "dry"}
@@ -228,6 +248,11 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
         "reason": " | ".join(expert.reasoning),
         "meta_quality": meta.to_dict(),
         "edge_contract": {"validated": edge_ok, "strict": strict_edge, "size_scale": edge_scale, "mode": edge_mode},
-        "learning_probe": {"active": probe_active, "max_size_scale": float(probe_cfg.get("max_size_scale", 0.25) or 0.25) if probe_active else None},
+        "learning_probe": {
+            "active": probe_active,
+            "tracked": (not probe_active) or not isinstance(probe_cfg.get("tracked_setups"), list) or expert.setup_id in {str(v) for v in probe_cfg.get("tracked_setups", [])},
+            "target_trades_per_setup": int(probe_cfg.get("target_trades_per_setup", 0) or 0) if probe_active else None,
+            "max_size_scale": float(probe_cfg.get("max_size_scale", 0.25) or 0.25) if probe_active else None,
+        },
         "ai_authority": {"directional": False, "role": "quality_advisory_only"},
     }

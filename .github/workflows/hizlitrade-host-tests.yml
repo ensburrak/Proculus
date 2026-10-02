@@ -27,4 +27,4 @@ jobs:
       - name: Run mirrored HIZLITRADE regression tests
         env:
           PYTHONPATH: .
-        run: python -m pytest -q tests_hizli/test_fresh_backtest_proxy.py
+        run: python -m pytest -q tests_hizli

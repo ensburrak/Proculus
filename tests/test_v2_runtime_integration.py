@@ -352,3 +352,14 @@ def test_strategy_release_is_empty_and_live_fail_closed() -> None:
     assert audit["allowed"] is False
     assert audit["reason"] == "runtime_mode_not_released"
 
+def test_stochrsi_parallel_remains_independent_but_shadow_only() -> None:
+    config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    lane = config["stochrsi_parallel"]
+
+    assert lane["enabled"] is True
+    assert lane["decision_authority"] == "independent"
+    assert lane["merge_into_primary_pipeline"] is False
+    assert lane["paper_orders_enabled"] is False
+    assert lane["demo_orders_enabled"] is False
+    assert lane["live_orders_enabled"] is False
+

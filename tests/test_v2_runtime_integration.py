@@ -69,6 +69,9 @@ def test_controller_async_runs_real_v2_decision_path() -> None:
     assert decision["setup_id"].startswith("bull_trend.pullback.long")
     assert decision["ai_authority"]["directional"] is False
     assert 0.0 < decision["risk_scale"] <= 1.0
+    assert decision["stop_atr_mult"] == 1.5
+    assert decision["tp_r_target"] == 2.5
+    assert decision["max_hold_hours"] == 48.0
 
 
 def test_paper_learning_probe_collects_edge_at_capped_size() -> None:

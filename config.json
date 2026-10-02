@@ -40,7 +40,7 @@
     "realistic_fills": true,
     "partial_fill_rate": 0.85,
     "market_fill_rate": 0.98,
-    "limit_queue_position_pct": 0.0,
+    "limit_queue_position_pct": 0,
     "limit_timeout_seconds": 120,
     "reconnection_simulation": {
       "enabled": false,
@@ -66,7 +66,12 @@
     "demo_orders_enabled": false,
     "live_orders_enabled": false,
     "max_same_direction_additions": 1,
-    "same_direction_size_factor": 0.5
+    "same_direction_size_factor": 0.5,
+    "decision_authority": "independent",
+    "merge_into_primary_pipeline": false,
+    "model_confirmation_required": false,
+    "tracking_namespace": "stochrsi_parallel",
+    "primary_pipeline_setup_registration": false
   },
   "edge_learning": {
     "enabled": true,
@@ -87,9 +92,9 @@
     "auto_apply_parameter_changes": false,
     "proposal_only": true,
     "disable_negative_expectancy_setups": true,
-    "max_drawdown_block_pct": 20.0,
-    "min_profit_factor": 1.05,
-    "min_expectancy_r": 0.0,
+    "max_drawdown_block_pct": 20,
+    "min_profit_factor": 1.15,
+    "min_expectancy_r": 0.05,
     "records_path": "reports/edge_events.jsonl",
     "stats_path": "reports/setup_edge_stats_latest.json",
     "proposal_path": "reports/edge_calibration_proposals_latest.json",
@@ -99,7 +104,7 @@
       "shadow_30d_required_days": 30,
       "demo_soak_required_hours": 336,
       "closed_trades_required_per_setup": 50,
-      "max_acceptable_drawdown_pct": 20.0,
+      "max_acceptable_drawdown_pct": 20,
       "liquidations_allowed": 0
     }
   },
@@ -190,14 +195,14 @@
     "schema_version": "llm-counterfactual-replay-v1",
     "runtime_enabled": false,
     "apply_to_decision": false,
-    "ml_effective_contribution": 0.0,
+    "ml_effective_contribution": 0,
     "allow_live_exchange_side_effects": false,
     "allow_testnet_exchange_side_effects": false,
     "months": 24,
     "random_seed": 42,
     "batch_size": 10,
     "prompt_mode": "compact",
-    "request_timeout_sec": 45.0,
+    "request_timeout_sec": 45,
     "providers": [
       {
         "name": "chatgpt",
@@ -213,15 +218,15 @@
       }
     ],
     "request_parameters": {
-      "temperature": 0.0,
+      "temperature": 0,
       "response_format": "json_object",
       "max_output_tokens": 2048,
       "thinking": "disabled"
     },
     "cost_control": {
-      "default_max_estimated_cost_usd": 2.0,
+      "default_max_estimated_cost_usd": 2,
       "preflight_max_age_minutes": 60,
-      "chars_per_input_token": 3.0,
+      "chars_per_input_token": 3,
       "estimated_output_tokens_per_candidate": 256,
       "prices_per_million": {
         "chatgpt": {
@@ -241,7 +246,7 @@
       "max_parse_error_rate": 0.02,
       "max_timeout_rate": 0.02,
       "max_terminal_error_rate": 0.05,
-      "max_latency_p95_ms": 30000.0,
+      "max_latency_p95_ms": 30000,
       "min_blocking_samples": 30,
       "max_veto_false_positive_rate": 0.15,
       "min_reduce_size_samples": 30
@@ -272,11 +277,11 @@
     },
     "provider_budget": {
       "operator_approved": true,
-      "cumulative_cap_usd": 0.0,
-      "spent_usd": 0.0,
+      "cumulative_cap_usd": 0,
+      "spent_usd": 0,
       "provider_calls_allowed": false
     },
-    "ml_effective_contribution": 0.0,
+    "ml_effective_contribution": 0,
     "allow_live_exchange_side_effects": false,
     "allow_testnet_exchange_side_effects": false,
     "rollback": {
@@ -288,7 +293,7 @@
       "max_parse_error_rate": 0.02,
       "max_timeout_rate": 0.02,
       "max_terminal_error_rate": 0.05,
-      "max_latency_p95_ms": 30000.0,
+      "max_latency_p95_ms": 30000,
       "phase11_provider_impact_disagreement_rate": 0.24563953,
       "max_provider_impact_disagreement_rate": 0.3,
       "max_provider_baseline_drift_pp": 0.05
@@ -343,13 +348,13 @@
     },
     "use_existing_cost_optimizer": true,
     "daily_cost_hard_cap_usd": 0.55,
-    "ml_effective_contribution": 0.0,
+    "ml_effective_contribution": 0,
     "allow_live_exchange_side_effects": false,
     "allow_testnet_exchange_side_effects": false,
     "fallback_mode": "defensive_paper",
     "shadow_outcome": {
       "horizon_seconds": 900,
-      "baseline_notional_usd": 100.0,
+      "baseline_notional_usd": 100,
       "max_pending_candidates": 2000
     },
     "acceptance": {
@@ -362,16 +367,16 @@
       "min_treatment_outcomes": 50,
       "min_control_outcomes": 50
     },
-    "early_harm_budget_extra_r": 3.0,
+    "early_harm_budget_extra_r": 3,
     "rollback": {
       "first_valid_breach": true,
       "min_treatment_outcomes": 30,
       "min_control_outcomes": 30,
       "window_size": 200,
       "evaluation_stride": 10,
-      "min_incremental_expectancy": 0.0,
-      "max_drawdown_delta": 0.0,
-      "max_cvar95_delta": 0.0
+      "min_incremental_expectancy": 0,
+      "max_drawdown_delta": 0,
+      "max_cvar95_delta": 0
     }
   },
   "token_cost_per_1k": {
@@ -425,8 +430,8 @@
       "symbol_loss_streak_cooldown_hours": 4,
       "global_loss_count": 5,
       "global_cooldown_hours": 1,
-      "small_loss_pct": 1.0,
-      "medium_loss_pct": 3.0,
+      "small_loss_pct": 1,
+      "medium_loss_pct": 3,
       "small_loss_cooldown_hours": 1,
       "medium_loss_cooldown_hours": 4,
       "large_loss_cooldown_hours": 12
@@ -440,13 +445,13 @@
   "hybrid_weights": {
     "chatgpt": 0.35,
     "deepseek": 0.35,
-    "transformer": 0.1,
-    "lightgbm": 0.15,
-    "xgboost": 0.0,
-    "ppo_rl": 0.05,
-    "sac_rl": 0.0,
-    "tcn": 0.0,
-    "ensemble": 0.0
+    "transformer": 0,
+    "lightgbm": 0,
+    "xgboost": 0,
+    "ppo_rl": 0,
+    "sac_rl": 0,
+    "tcn": 0,
+    "ensemble": 0
   },
   "ai_authority": {
     "policy_version": "ai-authority-v1",
@@ -500,14 +505,22 @@
       "input_max_age_seconds": 1800,
       "future_clock_skew_seconds": 300,
       "drift_report_max_age_hours": 24
-    }
+    },
+    "model_roles": {
+      "xgboost": "trade_quality_meta_filter_shadow",
+      "transformer": "shadow_research",
+      "lightgbm": "shadow_research",
+      "ppo_rl": "shadow_research"
+    },
+    "directional_model_authority": false,
+    "meta_filter_activation_requires_validated_edge": true
   },
   "rl_in_ai": false,
   "deepseek_model": "deepseek-v4-flash",
   "decision_weights": {
     "ai": 0.4,
     "tech": 0.6,
-    "sent": 0.0
+    "sent": 0
   },
   "apply_decision_weight_scaling": false,
   "risk_profile": "Balanced",
@@ -517,7 +530,7 @@
       "max_leverage": 15
     },
     "Balanced": {
-      "scale": 1.0,
+      "scale": 1,
       "max_leverage": 10
     },
     "Conservative": {
@@ -545,11 +558,11 @@
     "enabled": true,
     "shadow_mode": true,
     "keep_both_llms": false,
-    "target_monthly_usd": 10.0,
+    "target_monthly_usd": 10,
     "budget_controller": {
       "enabled": true,
-      "target_monthly_usd": 10.0,
-      "upper_monthly_usd": 12.0,
+      "target_monthly_usd": 10,
+      "upper_monthly_usd": 12,
       "daily_soft_usd": 0.4,
       "daily_hard_usd": 0.55,
       "defensive_on_limit": true,
@@ -762,11 +775,11 @@
       "dry_run": 1800,
       "live": 1800
     },
-    "batch_sleep_sec": 1.0,
+    "batch_sleep_sec": 1,
     "analysis_cycle_timeout_sec": 300,
     "analysis_idle_timeout_sec": 300,
     "regime_refresh_timeout_sec": 60,
-    "regime_refresh_p99_warn_sec": 5.0,
+    "regime_refresh_p99_warn_sec": 5,
     "analysis_task_timeout_sec": 180,
     "decision_task_timeout_sec": 180
   },
@@ -804,7 +817,7 @@
     "enforce_max_open_positions": true,
     "trade_cooldown_min": 39
   },
-  "max_ai_confidence": 1.0,
+  "max_ai_confidence": 1,
   "circuit_breaker": {
     "error_threshold": 3,
     "anomaly_threshold": 3,
@@ -826,7 +839,7 @@
       "tp1_pct": 0.33,
       "tp2_rr": 2.5,
       "tp2_pct": 0.33,
-      "tp3_rr": 4.0,
+      "tp3_rr": 4,
       "tp3_pct": 0.34,
       "tp3_type": "trailing"
     },
@@ -886,7 +899,7 @@
     "strict_edge_evidence": true,
     "allow_edge_cold_start": false,
     "edge_cold_start_size_scale": 0.25,
-    "edge_size_scale_leverage_cap_enabled": false,
+    "edge_size_scale_leverage_cap_enabled": true,
     "allow_llm_technical_fallback": false,
     "allow_llm_technical_fallback_in_no_trade_regime": false,
     "llm_technical_fallback_min_confidence": 0.68,
@@ -898,14 +911,14 @@
     "shock_probe": {
       "enabled": false,
       "min_tech_score": 0.68,
-      "max_vol_z": 4.0,
+      "max_vol_z": 4,
       "max_atr_pct": 0.06,
       "max_spread_pct": 0.0015,
       "max_estimated_slippage_pct": 0.006,
       "size_scale": 0.1,
       "max_leverage": 1,
-      "stop_atr_mult": 1.0,
-      "tp_r_target": 1.0,
+      "stop_atr_mult": 1,
+      "tp_r_target": 1,
       "entry_type": "limit"
     },
     "dual_write": true,
@@ -962,20 +975,42 @@
         "transition_confirm.persistent_retest.long.15m.v2",
         "transition_confirm.persistent_retest.short.15m.v2",
         "technical_consensus.long.15m.v1",
-        "technical_consensus.short.15m.v1",
-        "stochrsi_opportunity.bull.long.15m.v1",
-        "stochrsi_opportunity.bull.short.15m.v1",
-        "stochrsi_opportunity.bear.long.15m.v1",
-        "stochrsi_opportunity.bear.short.15m.v1",
-        "stochrsi_opportunity.range.long.15m.v1",
-        "stochrsi_opportunity.range.short.15m.v1"
+        "technical_consensus.short.15m.v1"
       ],
-      "progress_file": "state/learning_probe_progress.json"
+      "progress_file": "state/learning_probe_progress.json",
+      "allow_sample_collection_without_edge": true
+    },
+    "meta_quality_gate": {
+      "enabled": true,
+      "role": "trade_quality_meta_filter",
+      "direction_authority": false,
+      "block_below": 0.45,
+      "reduce_below": 0.6,
+      "reduced_size_scale": 0.5,
+      "enforce_live": false,
+      "require_calibrated_model": true
+    },
+    "adaptive_position_sizing": {
+      "enabled": true,
+      "amplification_allowed": false,
+      "confidence_floor": 0.6,
+      "full_size_confidence": 0.85,
+      "confidence_floor_size_scale": 0.5,
+      "regime_size_caps": {
+        "bull": 1,
+        "bear": 1,
+        "range": 0.8,
+        "compression": 0.75,
+        "transition": 0.6,
+        "shock": 0,
+        "conflict": 0,
+        "unknown": 0
+      }
     }
   },
   "max_concurrent_positions": 0,
   "symbol_filters": {
-    "min_24h_volume": 50000000.0,
+    "min_24h_volume": 50000000,
     "max_spread_pct": 0.05,
     "_max_spread_pct_note": "Value is percent; 0.05 = 0.05% = 5 bps. Metrics feed must expose spread_pct in same convention.",
     "min_listing_days": 90,
@@ -1021,10 +1056,10 @@
     "telegram_notify_performance": true,
     "telegram_max_message_length": 4096,
     "telegram_max_retries": 3,
-    "telegram_retry_base_delay_sec": 1.0,
+    "telegram_retry_base_delay_sec": 1,
     "telegram_circuit_breaker_threshold": 5,
-    "telegram_circuit_breaker_reset_sec": 60.0,
-    "telegram_healthcheck_interval_sec": 300.0
+    "telegram_circuit_breaker_reset_sec": 60,
+    "telegram_healthcheck_interval_sec": 300
   },
   "risk_config": {
     "atr_median_pct": 1.5,
@@ -1093,10 +1128,10 @@
     "max_spread_fraction": 0.003,
     "max_estimated_slippage_fraction": 0.006,
     "max_price_divergence_fraction": 0.005,
-    "max_abs_vol_z": 6.0,
+    "max_abs_vol_z": 6,
     "microcap_price_threshold": 0.001,
-    "microcap_pump_momentum_z": 3.0,
-    "microcap_pump_vol_z": 6.0
+    "microcap_pump_momentum_z": 3,
+    "microcap_pump_vol_z": 6
   },
   "thresholds": {
     "min_confidence": 0.55,
@@ -1114,26 +1149,26 @@
   },
   "volatility": {
     "low": {
-      "multiplier": 1.0,
+      "multiplier": 1,
       "sl_buffer": 0.5,
       "position_scale": 1.2,
       "atr_threshold": 0.015
     },
     "medium": {
       "multiplier": 0.8,
-      "sl_buffer": 1.0,
-      "position_scale": 1.0,
+      "sl_buffer": 1,
+      "position_scale": 1,
       "atr_threshold": 0.03
     },
     "high": {
       "multiplier": 0.5,
-      "sl_buffer": 2.0,
+      "sl_buffer": 2,
       "position_scale": 0.6,
       "atr_threshold": 0.05
     },
     "extreme": {
       "multiplier": 0.3,
-      "sl_buffer": 3.0,
+      "sl_buffer": 3,
       "position_scale": 0.3,
       "atr_threshold": 0.1
     }
@@ -1339,7 +1374,7 @@
       "plan": [
         {
           "pct_of_total": 0.4,
-          "trigger_move_pct": 0.0,
+          "trigger_move_pct": 0,
           "label": "initial"
         },
         {
@@ -1349,7 +1384,7 @@
         },
         {
           "pct_of_total": 0.3,
-          "trigger_move_pct": 1.0,
+          "trigger_move_pct": 1,
           "label": "trend_confirmed"
         }
       ],
@@ -1365,7 +1400,7 @@
     },
     "reentry_logic": {
       "enabled": true,
-      "same_dir_threshold_boost_pct": 10.0,
+      "same_dir_threshold_boost_pct": 10,
       "consecutive_sl_cooldown_count": 2,
       "consecutive_sl_cooldown_hours": 4,
       "reentry_size_multiplier": 0.6,
@@ -1403,18 +1438,18 @@
       "presets": {
         "balanced": {
           "min_sharpe": 1.5,
-          "max_drawdown_pct": 15.0,
-          "min_win_rate_pct": 55.0
+          "max_drawdown_pct": 15,
+          "min_win_rate_pct": 55
         },
         "aggressive": {
-          "min_sharpe": 2.0,
-          "max_drawdown_pct": 25.0,
-          "min_win_rate_pct": 50.0
+          "min_sharpe": 2,
+          "max_drawdown_pct": 25,
+          "min_win_rate_pct": 50
         },
         "conservative": {
-          "min_sharpe": 1.0,
-          "max_drawdown_pct": 8.0,
-          "min_win_rate_pct": 60.0
+          "min_sharpe": 1,
+          "max_drawdown_pct": 8,
+          "min_win_rate_pct": 60
         }
       },
       "selected_candidate": null,
@@ -1444,8 +1479,8 @@
     },
     "survival_analysis": {
       "enabled": true,
-      "default_hold_hours": 24.0,
-      "hard_max_hold_hours": 48.0,
+      "default_hold_hours": 24,
+      "hard_max_hold_hours": 48,
       "min_samples": 8,
       "bucket_minutes": 60,
       "partial_exit_pct": 0.25
@@ -1462,8 +1497,8 @@
     },
     "outlier_detection": {
       "enabled": true,
-      "max_return_pct": 15.0,
-      "volume_spike_mult": 10.0,
+      "max_return_pct": 15,
+      "volume_spike_mult": 10,
       "winsorize_lower": 0.01,
       "winsorize_upper": 0.99,
       "_note": "E1: Outlier detection, cleaning, and winsorization for training data"
@@ -1482,7 +1517,7 @@
       "enabled": true,
       "normal_window": 500,
       "regime_change_window": 200,
-      "scale_alert_pct": 50.0,
+      "scale_alert_pct": 50,
       "_note": "E3: Adaptive rolling z-score normalization with regime-aware window"
     }
   },
@@ -1491,7 +1526,7 @@
     "dynamic_selection": {
       "enabled": true,
       "active_win_rate_min": 0.55,
-      "active_sharpe_min": 1.0,
+      "active_sharpe_min": 1,
       "passive_win_rate_max": 0.4,
       "eval_period_days": 30,
       "update_interval_hours": 168,
@@ -1522,22 +1557,22 @@
       "enabled": true,
       "tiers": [
         {
-          "max_dd_pct": 3.0,
-          "multiplier": 1.0,
+          "max_dd_pct": 3,
+          "multiplier": 1,
           "tier": "normal"
         },
         {
-          "max_dd_pct": 7.0,
+          "max_dd_pct": 7,
           "multiplier": 0.6,
           "tier": "caution"
         },
         {
-          "max_dd_pct": 12.0,
+          "max_dd_pct": 12,
           "multiplier": 0.35,
           "tier": "warning"
         },
         {
-          "max_dd_pct": 100.0,
+          "max_dd_pct": 100,
           "multiplier": 0.15,
           "tier": "critical"
         }
@@ -1551,7 +1586,7 @@
       "extreme_loss_streak": 7,
       "win_confidence_boost": 0.05,
       "loss_size_multiplier": 0.6,
-      "forced_break_hours": 1.0,
+      "forced_break_hours": 1,
       "_note": "G2: Win/loss streak adaptation (confidence boost, size reduction, forced breaks)"
     },
     "equity_curve": {
@@ -1708,10 +1743,10 @@
     "source": "parameter_optimizer.py (Optuna)"
   },
   "wallet_allocation_pct": 0.1,
-  "default_order_usdt": 20.0,
-  "min_order_usdt": 5.0,
-  "min_entry_balance_usdt": 20.0,
-  "min_entry_notional_usdt": 20.0,
+  "default_order_usdt": 20,
+  "min_order_usdt": 5,
+  "min_entry_balance_usdt": 20,
+  "min_entry_notional_usdt": 20,
   "timeframe": "15m",
   "trade_accounting": {
     "enabled": true,
@@ -1732,9 +1767,9 @@
   "weights": {
     "chatgpt": 0.35,
     "deepseek": 0.35,
-    "transformer": 0.1,
-    "lightgbm": 0.15,
-    "ppo_rl": 0.05
+    "transformer": 0,
+    "lightgbm": 0,
+    "ppo_rl": 0
   },
   "disabled_models": [],
   "leverage_policy": {
@@ -1759,7 +1794,7 @@
       "enabled": true,
       "max_spread_pct": 0.015,
       "max_price_deviation_pct": 0.02,
-      "min_top_liquidity_usd": 0.0,
+      "min_top_liquidity_usd": 0,
       "funding_contrarian_action": "warn",
       "funding_contrarian_reduce_factor": 0.5
     },
@@ -1769,7 +1804,7 @@
       "allow_sandbox_side_effects": false,
       "require_protection": true,
       "max_rescue_leverage": 25,
-      "trigger_price_move_pct": -5.0,
+      "trigger_price_move_pct": -5,
       "rescue_size_pct": 0.25
     },
     "grid_dca": {
@@ -1783,16 +1818,16 @@
       "max_symbols_per_cycle": 3,
       "grid_levels": 4,
       "grid_spacing_pct": 0.01,
-      "quote_budget_usd": 100.0,
-      "max_total_quote_usd": 300.0,
-      "max_grid_exposure_usd": 0.0,
+      "quote_budget_usd": 100,
+      "max_total_quote_usd": 300,
+      "max_grid_exposure_usd": 0,
       "max_quote_budget_pct": 0.02,
-      "dca_multiplier": 1.0,
+      "dca_multiplier": 1,
       "max_size_multiplier": 1.25,
-      "min_level_quote_usd": 5.0,
-      "min_price": 0.0,
-      "min_range_confidence": 0.0,
-      "sell_inventory_fraction": 1.0,
+      "min_level_quote_usd": 5,
+      "min_price": 0,
+      "min_range_confidence": 0,
+      "sell_inventory_fraction": 1,
       "execute_inventory_sells": true,
       "live_opt_in_required": true,
       "live_opt_in_token": "",
@@ -1803,6 +1838,19 @@
         "mean_reversion",
         "range_revert"
       ]
+    }
+  },
+  "model_edge_authority": {
+    "mode": "shadow_only",
+    "edge_validated": false,
+    "apply_to_decision": false,
+    "reason": "No validated positive OOS trading edge. Model outputs may be computed and logged but must not alter direction, expert confidence, sizing, leverage, or execution.",
+    "promotion_requirements": {
+      "min_oos_trades": 500,
+      "min_profit_factor": 1.15,
+      "min_expectancy_r": 0.05,
+      "require_walk_forward_pass": true,
+      "require_paper_shadow_evidence": true
     }
   }
 }

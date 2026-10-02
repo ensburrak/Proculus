@@ -674,15 +674,38 @@ def simulate(
     }
 
 
+
+def compact_stats(payload: dict[str, Any]) -> dict[str, Any]:
+    keys = ("return_pct", "max_drawdown_pct_realized", "trades", "win_rate_pct", "profit_factor", "expectancy_r")
+    return {key: payload[key] for key in keys}
+
+
+def acceptance_flags(payload: dict[str, Any]) -> dict[str, Any]:
+    checks = {
+        "profit_factor_gte_1_15": float(payload.get("profit_factor", 0.0)) >= 1.15,
+        "expectancy_r_gte_0_05": float(payload.get("expectancy_r", -999.0)) >= 0.05,
+        "max_drawdown_lte_20pct": float(payload.get("max_drawdown_pct_realized", 999.0)) <= 20.0,
+        "min_trades_100": int(payload.get("trades", 0)) >= 100,
+    }
+    return {**checks, "all_pass": all(checks.values())}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--days", type=int, default=730)
+    parser.add_argument("--holdout-days", type=int, default=180)
+    parser.add_argument("--embargo-hours", type=int, default=48)
     parser.add_argument("--initial-balance", type=float, default=10000.0)
     parser.add_argument("--fee-bps", type=float, default=5.0)
     parser.add_argument("--slippage-bps", default="5,15,50")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+
+    if args.holdout_days <= 0 or args.holdout_days >= args.days:
+        raise SystemExit("--holdout-days must be >0 and < --days")
+    if args.embargo_hours < 0:
+        raise SystemExit("--embargo-hours must be >=0")
 
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     v2_pipeline._load_config = lambda: cfg  # research replay cache, same config content
@@ -699,14 +722,48 @@ def main() -> int:
             frames[symbol] = frame
             symbol_candidates = generate_candidates(symbol, frame)
             candidates.extend(symbol_candidates)
-            print(f"[CANDIDATES {idx}/{len(paths)}] {symbol} bars={len(frame)} candidates={len(symbol_candidates)}", flush=True)
+            print(
+                f"[CANDIDATES {idx}/{len(paths)}] {symbol} bars={len(frame)} candidates={len(symbol_candidates)}",
+                flush=True,
+            )
         except Exception as exc:
             print(f"[SKIP] {symbol}: {type(exc).__name__}: {exc}", flush=True)
 
-    scenarios = {}
+    if not frames:
+        raise SystemExit("no replay frames available")
+
+    data_start = min(pd.Timestamp(frame["timestamp"].min()) for frame in frames.values())
+    data_end = max(pd.Timestamp(frame["timestamp"].max()) for frame in frames.values())
+    holdout_start = data_end - pd.Timedelta(days=args.holdout_days)
+    development_cutoff = holdout_start - pd.Timedelta(hours=args.embargo_hours)
+
+    candidates = sorted(candidates, key=lambda x: (x.entry_time, x.symbol, x.setup_id))
+    development_candidates = [c for c in candidates if c.entry_time < development_cutoff]
+    oos_candidates = [c for c in candidates if c.entry_time >= holdout_start]
+
+    period_meta = {
+        "data_start": data_start.isoformat(),
+        "data_end": data_end.isoformat(),
+        "development_entry_end_exclusive": development_cutoff.isoformat(),
+        "holdout_start": holdout_start.isoformat(),
+        "holdout_days": args.holdout_days,
+        "embargo_hours": args.embargo_hours,
+        "development_candidate_count": len(development_candidates),
+        "oos_candidate_count": len(oos_candidates),
+        "embargo_candidate_count": len(candidates) - len(development_candidates) - len(oos_candidates),
+    }
+
+    scenarios: dict[str, dict[str, Any]] = {}
+    period_scenarios: dict[str, dict[str, dict[str, Any]]] = {
+        "development": {},
+        "oos_holdout": {},
+    }
+    acceptance: dict[str, dict[str, Any]] = {}
+
     for raw in str(args.slippage_bps).split(","):
         bps = float(raw.strip())
         name = f"slippage_{int(bps)}bps"
+
         scenarios[name] = simulate(
             candidates=candidates,
             frames=frames,
@@ -715,16 +772,64 @@ def main() -> int:
             slippage_bps=bps,
             cfg=cfg,
         )
-        print("FRESH_BACKTEST_SCENARIO=" + json.dumps({"scenario": name, **scenarios[name]}, ensure_ascii=False), flush=True)
+        period_scenarios["development"][name] = simulate(
+            candidates=development_candidates,
+            frames=frames,
+            initial_balance=args.initial_balance,
+            fee_bps=args.fee_bps,
+            slippage_bps=bps,
+            cfg=cfg,
+        )
+        period_scenarios["oos_holdout"][name] = simulate(
+            candidates=oos_candidates,
+            frames=frames,
+            initial_balance=args.initial_balance,
+            fee_bps=args.fee_bps,
+            slippage_bps=bps,
+            cfg=cfg,
+        )
+        acceptance[name] = acceptance_flags(period_scenarios["oos_holdout"][name])
+
+        print(
+            "FRESH_BACKTEST_SCENARIO="
+            + json.dumps({"scenario": name, **scenarios[name]}, ensure_ascii=False),
+            flush=True,
+        )
+        print(
+            "FRESH_BACKTEST_PERIOD="
+            + json.dumps(
+                {
+                    "period": "development",
+                    "scenario": name,
+                    **compact_stats(period_scenarios["development"][name]),
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+        print(
+            "FRESH_BACKTEST_PERIOD="
+            + json.dumps(
+                {
+                    "period": "oos_holdout",
+                    "scenario": name,
+                    **compact_stats(period_scenarios["oos_holdout"][name]),
+                    "acceptance": acceptance[name],
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
 
     report = {
-        "schema": "proculus-fresh-v2-two-year-v1",
+        "schema": "proculus-fresh-v2-two-year-oos-v2",
         "previous_backtests_used": False,
         "history_days": args.days,
         "bar": "15m",
         "symbols": sorted(frames),
         "symbol_count": len(frames),
         "candidate_count": len(candidates),
+        "period_meta": period_meta,
         "methodology": {
             "decision_engine": "decision.official_pipeline.process_symbol_decision + independent StochRSI90 lane",
             "edge_gate": "edge_validated=False; paper learning_probe_mode is the only cold-start path and caps size/leverage",
@@ -741,16 +846,36 @@ def main() -> int:
             "funding_assumption": "1 bp per 8h, conservative cost",
             "same_bar_priority": "stop before target",
             "lookahead": "1h/4h values become available only after higher-timeframe candle close",
+            "validation": (
+                f"first ~{args.days - args.holdout_days} days are development; "
+                f"last {args.holdout_days} days are untouched OOS holdout; "
+                f"{args.embargo_hours}h embargo prevents development trades from leaking into holdout"
+            ),
+            "oos_acceptance": "PF>=1.15, expectancy>=0.05R, maxDD<=20%, >=100 closed trades",
         },
         "scenarios": scenarios,
+        "period_scenarios": period_scenarios,
+        "oos_acceptance": acceptance,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    print("FRESH_BACKTEST_SUMMARY=" + json.dumps({
-        "symbol_count": report["symbol_count"],
-        "candidate_count": report["candidate_count"],
-        "scenarios": {k: {m: v[m] for m in ("return_pct","max_drawdown_pct_realized","trades","win_rate_pct","profit_factor","expectancy_r")} for k, v in scenarios.items()},
-    }, ensure_ascii=False), flush=True)
+
+    print(
+        "FRESH_BACKTEST_SUMMARY="
+        + json.dumps(
+            {
+                "symbol_count": report["symbol_count"],
+                "candidate_count": report["candidate_count"],
+                "period_meta": period_meta,
+                "scenarios": {k: compact_stats(v) for k, v in scenarios.items()},
+                "development": {k: compact_stats(v) for k, v in period_scenarios["development"].items()},
+                "oos_holdout": {k: compact_stats(v) for k, v in period_scenarios["oos_holdout"].items()},
+                "oos_acceptance": acceptance,
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
     return 0
 
 

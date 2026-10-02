@@ -19,6 +19,7 @@ def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:
         "edge_validated": edge_validated,
         "ta_pack": {
             "base_decision": "long",
+            "price": 109.35,
             "rsi": 56.0,
             "adx": 28.0,
             "atr_ratio": 0.012,

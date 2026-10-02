@@ -37,7 +37,7 @@ def evaluate_trend(*, side: str, item: dict[str, Any], ta: dict[str, Any], max_l
         if side=="short" and not (34.0 <= rsi <= 58.0):
             return None
 
-    score=0.62
+    score=0.50
     reasons=["4h direction aligned","1h structure aligned","15m pullback/resumption"]
     if 22.0 <= adx <= 38.0:
         score += 0.08; reasons.append(f"ADX quality {adx:.1f}")

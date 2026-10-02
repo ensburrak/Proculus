@@ -3,6 +3,7 @@ from __future__ import annotations
 from decision.regime_policy import get_regime_policy
 from decision.stochrsi_opportunity import evaluate_stochrsi_opportunity
 from decision.strategy_router import route_to_expert
+from runtime.stochrsi_parallel import build_stochrsi_parallel_decision
 
 
 def _trend_item() -> dict:
@@ -65,3 +66,28 @@ def test_stochrsi_is_independent_and_true_cross_only() -> None:
     item["ta_pack"]["stoch_rsi_90_prev_d"]=10.0
     blocked=evaluate_stochrsi_opportunity(item=item,ta=item["ta_pack"])
     assert blocked.action=="hold"
+
+
+def test_stochrsi_runtime_authority_is_mode_scoped() -> None:
+    item={
+        "symbol":"BTC/USDT",
+        "regime":"bull",
+        "runtime_mode":"paper",
+        "ta_pack":{
+            "rsi":52.0,"adx":25.0,"atr_ratio":0.01,"vol_z":0.5,
+            "ema":{"fast":101.0,"slow":100.0},
+            "stoch_rsi_90_prev_k":8.0,"stoch_rsi_90_prev_d":12.0,
+            "stoch_rsi_90_k":18.0,"stoch_rsi_90_d":16.0,
+        },
+    }
+    cfg={"stochrsi_parallel":{"enabled":True,"paper_orders_enabled":True,"demo_orders_enabled":False,"live_orders_enabled":False}}
+    paper=build_stochrsi_parallel_decision(item,cfg)
+    assert paper["action"]=="enter"
+    assert paper["order_authorized"] is True
+    assert paper["merge_into_primary_pipeline"] is False
+
+    item["runtime_mode"]="live"
+    live=build_stochrsi_parallel_decision(item,cfg)
+    assert live["action"]=="enter"
+    assert live["order_authorized"] is False
+    assert live["execution_blocker"]=="stochrsi_mode_not_authorized"

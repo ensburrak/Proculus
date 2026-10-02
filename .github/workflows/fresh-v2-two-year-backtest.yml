@@ -1,0 +1,66 @@
+name: Fresh Proculus V2 Two Year Backtest
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - tools/fetch_okx_two_year_replay_data.py
+      - tools/fresh_two_year_v2_backtest.py
+      - decision/**
+      - runtime/**
+      - risk/**
+      - config.json
+      - .github/workflows/fresh-v2-two-year-backtest.yml
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install replay dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas pyarrow requests
+      - name: Fetch fresh OKX 730-day runtime-eligible universe
+        run: |
+          rm -rf scratch/fresh_proculus_two_year
+          mkdir -p scratch/fresh_proculus_two_year/ohlcv
+          python tools/fetch_okx_two_year_replay_data.py             --days 730             --workers 6             --output-dir scratch/fresh_proculus_two_year/ohlcv             --metadata-output scratch/fresh_proculus_two_year/fetch_metadata.json
+      - name: Run fresh integrated V2 replay
+        run: |
+          python tools/fresh_two_year_v2_backtest.py             --days 730             --initial-balance 10000             --fee-bps 5             --slippage-bps 5,15,50             --data-dir scratch/fresh_proculus_two_year/ohlcv             --output scratch/fresh_proculus_two_year/result.json
+      - name: Print compact result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("scratch/fresh_proculus_two_year")
+          result = json.loads((root / "result.json").read_text())
+          fetch = json.loads((root / "fetch_metadata.json").read_text())
+          print("PROCULUS_FINAL_RESULT=" + json.dumps({
+              "downloaded_count": fetch.get("downloaded_count"),
+              "universe": fetch.get("universe"),
+              "candidate_count": result.get("candidate_count"),
+              "scenarios": result.get("scenarios"),
+          }, separators=(",", ":")))
+          PY
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-proculus-v2-two-year-backtest
+          path: |
+            scratch/fresh_proculus_two_year/result.json
+            scratch/fresh_proculus_two_year/fetch_metadata.json
+          retention-days: 14
+          if-no-files-found: error

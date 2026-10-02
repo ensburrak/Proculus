@@ -846,8 +846,9 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
         policy = fit_policy(train, config)
         stages = evaluate_policy_stages(test, policy, config)
         for stage, rows in stages.items():
+            bucket = accumulated[stage]
             for row in rows:
-                accumulated[stage][(row.market_id, row.instrument, row.signal_ts_ns)] = row
+                bucket[(row.market_id, row.instrument, row.signal_ts_ns)] = row
         fold_reports.append(
             {
                 "fold": index,
@@ -872,6 +873,7 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
                 "execution_no_trade": policy.execution_no_trade,
                 "ml_gate_available": policy.ml_gate_available,
                 "ml_no_trade": policy.ml_no_trade,
+                "strict_edge_evidence_passed": policy.strict_edge_evidence_passed,
                 "ml_threshold": (
                     policy.ml_model.threshold if policy.ml_model is not None else None
                 ),

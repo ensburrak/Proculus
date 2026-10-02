@@ -891,10 +891,10 @@ def main() -> int:
             "lookahead": "1h/4h values become available only after higher-timeframe candle close",
             "validation": (
                 f"first ~{args.days - args.holdout_days} days are development; "
-                f"last {args.holdout_days} days are untouched OOS holdout; "
+                f"last {args.holdout_days} days are a retrospective temporal holdout; "
                 f"{args.embargo_hours}h embargo prevents development trades from leaking into holdout"
             ),
-            "oos_acceptance": "PF>=1.15, expectancy>=0.05R, maxDD<=20%, >=100 closed trades",
+            "oos_acceptance": "retrospective temporal holdout gate: PF>=1.15, expectancy>=0.05R, maxDD<=20%, >=100 closed trades; live promotion still requires walk-forward + forward demo",
         },
         "scenarios": scenarios,
         "period_scenarios": period_scenarios,

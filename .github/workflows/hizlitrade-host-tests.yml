@@ -1,0 +1,30 @@
+name: HIZLITRADE Host Regression Tests
+
+on:
+  push:
+    branches:
+      - research/hizlitrade-profitability-host-20261003
+    paths:
+      - tools/fresh_hizlitrade_backtest.py
+      - hizlitrade/**
+      - tests_hizli/**
+      - .github/workflows/hizlitrade-host-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: python -m pip install pytest
+      - name: Run mirrored HIZLITRADE regression tests
+        env:
+          PYTHONPATH: .
+        run: python -m pytest -q tests_hizli/test_fresh_backtest_proxy.py

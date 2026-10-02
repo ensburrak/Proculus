@@ -924,6 +924,81 @@ def _proxy_portfolio_summary(
     }
 
 
+def nested_train_validation_split(
+    markets: tuple[Any, ...],
+    *,
+    min_fit_markets: int,
+    min_validation_markets: int,
+) -> tuple[tuple[str, ...], tuple[str, ...], int, tuple[str, ...]] | None:
+    """Split an outer training window into causal fit and validation markets.
+
+    Markets sharing the same signal timestamp stay together. A fit label is
+    usable only if it settled strictly before validation begins.
+    """
+    if min_fit_markets <= 0 or min_validation_markets <= 0:
+        raise ValueError("nested market minimums must be positive")
+    ordered = tuple(
+        sorted(markets, key=lambda row: (row.signal_ts_ns, row.market_id))
+    )
+    if len(ordered) < min_fit_markets + min_validation_markets:
+        return None
+
+    groups: list[list[Any]] = []
+    for market in ordered:
+        if not groups or groups[-1][0].signal_ts_ns != market.signal_ts_ns:
+            groups.append([market])
+        else:
+            groups[-1].append(market)
+
+    validation_groups: list[list[Any]] = []
+    validation_count = 0
+    split_index = len(groups)
+    while split_index > 0 and validation_count < min_validation_markets:
+        split_index -= 1
+        validation_groups.insert(0, groups[split_index])
+        validation_count += len(groups[split_index])
+    if validation_count < min_validation_markets or split_index <= 0:
+        return None
+
+    validation = tuple(
+        market for group in validation_groups for market in group
+    )
+    validation_start = validation[0].signal_ts_ns
+    prior = tuple(
+        market for group in groups[:split_index] for market in group
+    )
+    fit = tuple(
+        market for market in prior if market.settled_ts_ns < validation_start
+    )
+    purged = tuple(
+        market.market_id
+        for market in prior
+        if market.settled_ts_ns >= validation_start
+    )
+    if len(fit) < min_fit_markets:
+        return None
+    return (
+        tuple(market.market_id for market in fit),
+        tuple(market.market_id for market in validation),
+        validation_start,
+        purged,
+    )
+
+
+def nested_validation_passes(
+    rows: list[SettledTrade],
+    *,
+    min_markets: int,
+) -> bool:
+    if min_markets <= 0:
+        raise ValueError("min_markets must be positive")
+    summary = _proxy_stage_summary(rows)
+    if summary["unique_markets"] < min_markets:
+        return False
+    lower = summary["market_return_stats"].get("mean_ci95_low")
+    return lower is not None and float(lower) > 0.0
+
+
 def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
     markets = aggregate_markets(tuple(samples))
     market_count = len(markets)
@@ -967,6 +1042,72 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
         test = [row for row in samples if row.market_id in test_ids]
         policy = fit_policy(train, config)
         stages = evaluate_policy_stages(test, policy, config)
+
+        nested_min_validation = max(8, min(20, len(train_ids) // 5))
+        nested_min_fit = max(30, min_train // 2)
+        nested_split = nested_train_validation_split(
+            train_rows,
+            min_fit_markets=nested_min_fit,
+            min_validation_markets=nested_min_validation,
+        )
+        nested_report: dict[str, Any]
+        nested_test_rows: list[SettledTrade] = []
+        if nested_split is None:
+            nested_report = {
+                "available": False,
+                "passed": False,
+                "reason": "insufficient_causal_fit_validation_markets",
+                "min_fit_markets": nested_min_fit,
+                "min_validation_markets": nested_min_validation,
+            }
+        else:
+            fit_ids_tuple, validation_ids_tuple, validation_start, nested_purged = nested_split
+            fit_ids = set(fit_ids_tuple)
+            validation_ids = set(validation_ids_tuple)
+            if fit_ids & validation_ids:
+                raise RuntimeError("nested fit/validation market leakage detected")
+            inner_fit = [row for row in samples if row.market_id in fit_ids]
+            inner_validation = [
+                row for row in samples if row.market_id in validation_ids
+            ]
+            nested_policy = fit_policy(inner_fit, config)
+            validation_stages = evaluate_policy_stages(
+                inner_validation,
+                nested_policy,
+                config,
+            )
+            validation_strict = validation_stages["strict_edge_evidence"]
+            nested_passed = nested_validation_passes(
+                validation_strict,
+                min_markets=nested_min_validation,
+            )
+            if nested_passed:
+                nested_test_rows = evaluate_policy_stages(
+                    test,
+                    nested_policy,
+                    config,
+                )["strict_edge_evidence"]
+            nested_report = {
+                "available": True,
+                "passed": nested_passed,
+                "fit_markets": len(fit_ids),
+                "validation_markets": len(validation_ids),
+                "validation_start_ts_ns": validation_start,
+                "purged_fit_markets": len(nested_purged),
+                "selected_symbols": list(nested_policy.selected_symbols),
+                "selected_setup_families": list(
+                    nested_policy.selected_setup_families
+                ),
+                "selected_regimes": list(nested_policy.selected_regimes),
+                "strict_edge_evidence_passed": (
+                    nested_policy.strict_edge_evidence_passed
+                ),
+                "validation_strict": _proxy_stage_summary(
+                    validation_strict
+                ),
+            }
+        stages["nested_validated_strict_edge"] = nested_test_rows
+
         for stage, rows in stages.items():
             bucket = accumulated[stage]
             for row in rows:
@@ -999,6 +1140,7 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
                 "ml_threshold": (
                     policy.ml_model.threshold if policy.ml_model is not None else None
                 ),
+                "nested_validation": nested_report,
                 "stages": {
                     stage: _proxy_stage_summary(rows)
                     for stage, rows in stages.items()
@@ -1052,6 +1194,7 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
             "Training labels that settle at or after the next test start are purged.",
             "Every stage is replayed again under the current paper-account risk envelope.",
             "A separate research-only portfolio replay divides the unchanged hard daily-loss budget across eight worst-case slots; it does not relax the daily loss cap.",
+            "nested_validated_strict_edge fits policy only on an inner causal fit window, requires an independent inner-validation market-return 95% lower confidence bound above zero, then freezes that policy for the outer OOS fold.",
             "The proxy maps OKX 1m/3m momentum into the short-horizon momentum feature slots because sub-second historical spot is unavailable.",
             "Historical CLOB L2 spread and book imbalance are unavailable and are not fabricated.",
             "This diagnostic cannot satisfy the live-promotion replay or microstructure evidence gates.",

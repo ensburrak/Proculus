@@ -1,3 +1,4 @@
+import urllib.parse
 from pathlib import Path
 
 
@@ -43,7 +44,7 @@ def _candidate(
         history=[(ts, 0.40)],
         spot_price=100.0,
         strike=100.0,
-        basis_bps=0.0,
+        moneyness_bps=0.0,
         momentum_1m_bps=None,
         momentum_3m_bps=None,
         market_duration_ms=300_000.0,
@@ -91,36 +92,41 @@ def test_simulate_resets_daily_loss_baseline_on_utc_day_change() -> None:
     assert result["final_cash_usd"] < 100.0
 
 
-def test_bulk_gamma_discovery_walks_keyset_cursor(monkeypatch) -> None:
+def test_bulk_gamma_discovery_batches_repeated_slug_filters(monkeypatch) -> None:
     calls: list[str] = []
-    pages = [
-        {
-            "markets": [
-                {"slug": "btc-updown-5m-100", "closed": True},
-                {"slug": "other-market", "closed": True},
-            ],
-            "next_cursor": "cursor-1",
-        },
-        {
-            "markets": [
-                {"slug": "eth-updown-15m-200", "closed": True},
-            ],
-        },
-    ]
 
     def fake_fetch(url: str, attempts: int = 5):
         del attempts
         calls.append(url)
-        return pages.pop(0)
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        slugs = query.get("slug", [])
+        return [
+            {
+                "markets": [
+                    {"slug": slug, "closed": True}
+                    for slug in slugs
+                ]
+            }
+        ]
 
     monkeypatch.setattr(_MODULE, "fetch_json", fake_fetch)
 
     found = _MODULE.gamma_markets_for_slugs(
-        {"btc-updown-5m-100", "eth-updown-15m-200"},
-        cutoff_epoch=0,
-        max_pages=5,
+        {
+            "btc-updown-5m-100",
+            "eth-updown-15m-200",
+            "sol-updown-5m-300",
+        },
+        batch_size=2,
     )
 
-    assert set(found) == {"btc-updown-5m-100", "eth-updown-15m-200"}
+    assert set(found) == {
+        "btc-updown-5m-100",
+        "eth-updown-15m-200",
+        "sol-updown-5m-300",
+    }
     assert len(calls) == 2
-    assert "after_cursor=cursor-1" in calls[1]
+    first_query = urllib.parse.parse_qs(urllib.parse.urlsplit(calls[0]).query)
+    second_query = urllib.parse.parse_qs(urllib.parse.urlsplit(calls[1]).query)
+    assert len(first_query["slug"]) == 2
+    assert len(second_query["slug"]) == 1

@@ -1011,6 +1011,29 @@
       "enabled": true,
       "top_fraction": 0.15,
       "min_candidates": 2
+    },
+    "profitability_control": {
+      "enabled": true,
+      "require_costed_edge": true,
+      "min_edge_buffer_bps": 5,
+      "min_setup_samples": 100,
+      "min_profit_factor": 1.15,
+      "min_expectancy_r": 0.05,
+      "sample_limited_size_scale": 0.25,
+      "meta_block_below": 0.45,
+      "meta_reduce_below": 0.6,
+      "meta_reduced_size_scale": 0.5,
+      "transition_min_confidence": 0.74,
+      "regime_size_caps": {
+        "bull": 1,
+        "bear": 1,
+        "range": 0.75,
+        "compression": 0.6,
+        "transition": 0.35,
+        "shock": 0,
+        "conflict": 0,
+        "unknown": 0
+      }
     }
   },
   "max_concurrent_positions": 0,
@@ -1857,5 +1880,20 @@
       "require_walk_forward_pass": true,
       "require_paper_shadow_evidence": true
     }
+  },
+  "profitability_evidence": {
+    "enabled": true,
+    "min_oos_trades": 250,
+    "min_oos_profit_factor": 1.15,
+    "min_oos_expectancy_r": 0.05,
+    "require_positive_expectancy_ci95_low": true,
+    "max_oos_degradation_pct": 25,
+    "min_positive_fold_share": 0.67,
+    "min_shadow_hours": 72,
+    "min_paper_days": 14,
+    "min_canary_days": 14,
+    "require_zero_liquidations": true,
+    "require_data_integrity": true,
+    "require_tca": true
   }
 }

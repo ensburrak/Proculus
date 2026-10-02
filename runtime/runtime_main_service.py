@@ -4,7 +4,7 @@ import inspect
 import os
 from typing import Any
 
-from .runtime_loop_services import trading_loop_async_service
+from .runtime_loop_services import trading_loop_async
 
 
 async def initialize_exchange_async() -> Any:
@@ -28,9 +28,9 @@ async def initialize_exchange_async() -> Any:
 async def main_service(*, symbols: list[str] | None = None, runtime_mode: str = "paper", once: bool = False) -> dict[str, dict[str, Any]]:
     exchange = await initialize_exchange_async()
     try:
-        return await trading_loop_async_service(
+        return await trading_loop_async(
             exchange,
-            symbols or ["BTC/USDT", "ETH/USDT", "SOL/USDT"],
+            symbols,
             runtime_mode=runtime_mode,
             once=once,
         )

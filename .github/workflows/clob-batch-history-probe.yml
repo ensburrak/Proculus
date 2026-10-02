@@ -1,0 +1,65 @@
+name: CLOB Batch History Probe
+
+on:
+  push:
+    branches:
+      - research/hizlitrade-profitability-host-20261003
+    paths:
+      - .github/workflows/clob-batch-history-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe CLOB batch price history
+        run: |
+          python - <<'PY'
+          import json, time, urllib.parse, urllib.request
+
+          now = int(time.time())
+          anchor = (now // 300) * 300
+          slug = f"btc-updown-5m-{anchor - 600}"
+          gamma = "https://gamma-api.polymarket.com/events?" + urllib.parse.urlencode({"slug": slug})
+          with urllib.request.urlopen(gamma, timeout=20) as resp:
+              events = json.loads(resp.read().decode("utf-8"))
+          markets = events[0].get("markets") if events else []
+          market = next((m for m in markets if m.get("slug") == slug), None)
+          if market is None:
+              raise SystemExit("recent market not found")
+          token_ids = market.get("clobTokenIds")
+          if isinstance(token_ids, str):
+              token_ids = json.loads(token_ids)
+          if not isinstance(token_ids, list) or len(token_ids) != 2:
+              raise SystemExit("binary tokens missing")
+
+          body = json.dumps({
+              "markets": [str(x) for x in token_ids],
+              "start_ts": anchor - 1200,
+              "end_ts": anchor,
+              "fidelity": 1,
+          }).encode("utf-8")
+          req = urllib.request.Request(
+              "https://clob.polymarket.com/batch-prices-history",
+              data=body,
+              headers={"Content-Type":"application/json","User-Agent":"hizlitrade-clob-probe/1.0"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=30) as resp:
+              payload = json.loads(resp.read().decode("utf-8"))
+          history = payload.get("history") if isinstance(payload, dict) else None
+          counts = {
+              token: len((history or {}).get(token) or [])
+              for token in map(str, token_ids)
+          }
+          print(json.dumps({"slug":slug,"tokens":token_ids,"counts":counts}, indent=2))
+          if not isinstance(history, dict) or any(count == 0 for count in counts.values()):
+              raise SystemExit("batch price history did not return both token histories")
+          PY

@@ -968,6 +968,11 @@
         "compression_breakout.up_retest.long.15m.v2",
         "compression_breakout.down_retest.short.15m.v2"
       ],
+      "frozen_setups": [
+        "bull_trend.pullback.long.15m.v2",
+        "bear_trend.pullback.short.15m.v2"
+      ],
+      "frozen_setup_reason": "Two-year replay: thousands of trend-pullback trades remained negative in development and retrospective holdout after costs; keep diagnosable but stop paper execution until a new validated policy supersedes this evidence.",
       "progress_file": "state/learning_probe_progress.json",
       "allow_sample_collection_without_edge": true
     },

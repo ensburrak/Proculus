@@ -29,7 +29,7 @@ def test_trend_router_uses_v2_expert() -> None:
     item=_trend_item()
     signal=route_to_expert(regime="bull",item=item,ta=item["ta_pack"])
     assert signal is not None
-    assert signal.setup_id=="bull_trend.pullback.long.15m.v2"
+    assert signal.setup_id=="bull_trend.pullback.long.15m.v3"
     assert signal.direction=="long"
     assert signal.confidence >= get_regime_policy("bull")["min_confidence"]
 
@@ -104,3 +104,18 @@ def test_probe_confidence_override_does_not_relax_default_policy() -> None:
     assert probe is not None
     assert probe.confidence < get_regime_policy("range")["min_confidence"]
     assert probe.setup_id=="range_revert.low_band_rejection.long.15m.v2"
+
+
+
+def test_trend_v3_rejects_weak_higher_timeframe_strength() -> None:
+    item=_trend_item()
+    item["mtf_features"]["1h"]["adx"]=17.0
+    signal=route_to_expert(regime="bull",item=item,ta=item["ta_pack"])
+    assert signal is None
+
+
+def test_trend_v3_requires_true_microstructure_break() -> None:
+    item=_trend_item()
+    item["mtf_features"]["15m"]["recent_highs"]=[109.1,109.2,109.15,109.50,109.60]
+    signal=route_to_expert(regime="bull",item=item,ta=item["ta_pack"])
+    assert signal is None

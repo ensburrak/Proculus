@@ -440,13 +440,13 @@ def _stoch_cross_prefilter(row: pd.Series) -> bool:
     return (pk < pdv and k >= d) or (pk > pdv and k <= d)
 
 
-def generate_candidates(symbol: str, frame: pd.DataFrame) -> list[Candidate]:
+def generate_candidates(symbol: str, frame: pd.DataFrame, *, include_stochrsi: bool = True) -> list[Candidate]:
     candidates: list[Candidate] = []
     for idx in range(800, len(frame) - 1):
         row = frame.iloc[idx]
         recent = frame.iloc[max(0, idx - 7): idx + 1]
         primary_possible = prefilter(row, recent)
-        stoch_possible = _stoch_cross_prefilter(row)
+        stoch_possible = bool(include_stochrsi) and _stoch_cross_prefilter(row)
         if not primary_possible and not stoch_possible:
             continue
 
@@ -1221,6 +1221,9 @@ def main() -> int:
         metadata_path = candidate_metadata if candidate_metadata.exists() else None
     _SYMBOL_PRIORITY = load_symbol_priority(metadata_path)
 
+    stoch_cfg = cfg.get("stochrsi_parallel") if isinstance(cfg.get("stochrsi_parallel"), dict) else {}
+    stoch_execution_enabled = bool(stoch_cfg.get("paper_orders_enabled", False))
+
     frames: dict[str, pd.DataFrame] = {}
     candidates: list[Candidate] = []
     paths = sorted(args.data_dir.glob("*_15m.parquet"))
@@ -1231,7 +1234,11 @@ def main() -> int:
             if len(frame) < 1200:
                 continue
             frames[symbol] = frame
-            symbol_candidates = generate_candidates(symbol, frame)
+            symbol_candidates = generate_candidates(
+                symbol,
+                frame,
+                include_stochrsi=stoch_execution_enabled,
+            )
             candidates.extend(symbol_candidates)
             print(
                 f"[CANDIDATES {idx}/{len(paths)}] {symbol} bars={len(frame)} candidates={len(symbol_candidates)}",
@@ -1373,13 +1380,17 @@ def main() -> int:
         "symbols": sorted(frames),
         "symbol_count": len(frames),
         "candidate_count": len(candidates),
+        "stochrsi_paper_execution_enabled": stoch_execution_enabled,
         "period_meta": period_meta,
         "methodology": {
             "decision_engine": "decision.official_pipeline.process_symbol_decision + independent StochRSI90 lane",
             "edge_gate": "edge_validated=False; paper learning_probe_mode is the only cold-start path and caps size/leverage",
             "ml_direction_authority": "disabled",
             "meta_quality": "not enforced because no calibrated historical meta model is available",
-            "stochrsi_parallel": "independent candidate authority; does not vote inside primary router",
+            "stochrsi_parallel": (
+                "independent executable paper lane" if stoch_execution_enabled
+                else "independent shadow-only lane; excluded from portfolio simulation after negative OOS evidence"
+            ),
             "entry": "next 15m open after closed-candle decision",
             "same_timestamp_symbol_priority": "current OKX runtime universe order by descending approx 24h quote volume; alphabetical fallback only if metadata unavailable",
             "max_open_positions": int((cfg.get("trade_parameters") or {}).get("max_open_positions", 2)),

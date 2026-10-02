@@ -58,6 +58,7 @@ VOL_WINDOW_SECONDS = 300
 VOL_PROXY_BAR_SECONDS = 60
 VOL_RETURN_CLIP_BPS = 100.0
 VOL_FLOOR = 1e-7
+DIVERSIFIED_RISK_SLOTS = 8
 
 SCENARIOS = {
     "history_price_optimistic": {"slippage": 0.0, "order_notional": 2.50},
@@ -779,7 +780,11 @@ def _proxy_stage_summary(rows: list[SettledTrade]) -> dict[str, Any]:
     }
 
 
-def _proxy_portfolio_summary(rows: list[SettledTrade]) -> dict[str, Any]:
+def _proxy_portfolio_summary(
+    rows: list[SettledTrade],
+    *,
+    risk_budget_slots: int | None = None,
+) -> dict[str, Any]:
     result = replay_portfolio(
         rows,
         PortfolioReplayConfig(
@@ -790,6 +795,7 @@ def _proxy_portfolio_summary(rows: list[SettledTrade]) -> dict[str, Any]:
             max_concurrent_positions=MAX_CONCURRENT_POSITIONS,
             max_daily_loss_pct=MAX_DAILY_LOSS_PCT,
             max_drawdown_pct=MAX_DRAWDOWN_PCT,
+            risk_budget_slots=risk_budget_slots,
         ),
     )
     summary = _proxy_stage_summary(list(result.accepted_trades))
@@ -885,6 +891,13 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
                     stage: _proxy_portfolio_summary(rows)
                     for stage, rows in stages.items()
                 },
+                "diversified_portfolio_stages": {
+                    stage: _proxy_portfolio_summary(
+                        rows,
+                        risk_budget_slots=DIVERSIFIED_RISK_SLOTS,
+                    )
+                    for stage, rows in stages.items()
+                },
             }
         )
 
@@ -900,6 +913,13 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
         stage: _proxy_portfolio_summary(rows)
         for stage, rows in combined_rows.items()
     }
+    combined_diversified_portfolio = {
+        stage: _proxy_portfolio_summary(
+            rows,
+            risk_budget_slots=DIVERSIFIED_RISK_SLOTS,
+        )
+        for stage, rows in combined_rows.items()
+    }
     return {
         "qualified_for_diagnostic": bool(folds),
         "market_count": market_count,
@@ -909,10 +929,13 @@ def adaptive_proxy_backtest(samples: list[SettledTrade]) -> dict[str, Any]:
         "folds": fold_reports,
         "combined_oos_ablation": combined,
         "combined_oos_portfolio_ablation": combined_portfolio,
+        "combined_oos_diversified_portfolio_ablation": combined_diversified_portfolio,
+        "diversified_risk_slots": DIVERSIFIED_RISK_SLOTS,
         "notes": [
             "Every policy is fitted only on prior settled markets and frozen for the next OOS fold.",
             "Training labels that settle at or after the next test start are purged.",
             "Every stage is replayed again under the current paper-account risk envelope.",
+            "A separate research-only portfolio replay divides the unchanged hard daily-loss budget across eight worst-case slots; it does not relax the daily loss cap.",
             "The proxy maps OKX 1m/3m momentum into the short-horizon momentum feature slots because sub-second historical spot is unavailable.",
             "Historical CLOB L2 spread and book imbalance are unavailable and are not fabricated.",
             "This diagnostic cannot satisfy the live-promotion replay or microstructure evidence gates.",
@@ -1053,6 +1076,10 @@ def main() -> None:
         "method": "sequential_realized_settlement_edge_quality",
         "accepted": _proxy_stage_summary(edge_quality_rows),
         "portfolio": _proxy_portfolio_summary(edge_quality_rows),
+        "diversified_portfolio": _proxy_portfolio_summary(
+            edge_quality_rows,
+            risk_budget_slots=DIVERSIFIED_RISK_SLOTS,
+        ),
         "rejections": edge_quality_result.rejection_counts,
         "calibration_applied": edge_quality_result.calibration_applied,
         "observed_settlements": edge_quality_result.observed_settlements,
@@ -1176,6 +1203,23 @@ def main() -> None:
             "mean_return=", summary["return_stats"].get("mean"),
             "market_ci95_low=", summary["market_return_stats"].get("mean_ci95_low"),
         )
+    for stage, summary in adaptive_diagnostic.get(
+        "combined_oos_diversified_portfolio_ablation", {}
+    ).items():
+        print(
+            "adaptive_diversified_portfolio",
+            stage,
+            "trades=", summary["trades"],
+            "markets=", summary["unique_markets"],
+            "win_rate=", round(summary["win_rate"] * 100, 2),
+            "pnl=", round(summary["portfolio_realized_pnl_usd"], 4),
+            "final_cash=", round(summary["final_cash_usd"], 4),
+            "max_dd=", round(summary["max_drawdown_pct"] * 100, 3),
+            "market_pf=", summary["market_return_stats"].get("profit_factor"),
+            "market_ci95_low=", summary["market_return_stats"].get("mean_ci95_low"),
+            "rejections=", summary["rejections"],
+        )
+
     for stage, summary in adaptive_diagnostic.get(
         "combined_oos_portfolio_ablation", {}
     ).items():

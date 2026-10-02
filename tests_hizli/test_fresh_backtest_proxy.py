@@ -331,30 +331,34 @@ def test_nested_validation_split_is_chronological_and_purges_late_labels() -> No
 
 
 def test_nested_validation_requires_positive_market_ci() -> None:
-    positive = [
-        _MODULE.SettledTrade(
-            market_id=f"p{index}",
-            instrument=f"p{index}:YES",
+    def settled(market_id: str, index: int, pnl: float):
+        return _MODULE.SettledTrade(
+            market_id=market_id,
+            instrument=f"{market_id}:YES",
             symbol="ZECUSD",
             signal_ts_ns=index,
             settled_ts_ns=index + 1,
             cost_basis_usd=1.0,
-            realized_pnl_usd=0.4,
+            realized_pnl_usd=pnl,
             shares=1.0,
+            fair_probability=None,
+            outcome="YES",
+            signal_net_edge=None,
+            time_to_expiry_ms=None,
+            spot_dispersion_bps=None,
+            volatility_sigma_per_sqrt_second=None,
+            won=pnl > 0,
+            momentum_1s_bps=None,
+            oracle_basis_bps=None,
+            prediction_spread=None,
         )
+
+    positive = [
+        settled(f"p{index}", index, 0.4)
         for index in range(10)
     ]
     mixed = [
-        _MODULE.SettledTrade(
-            market_id=f"m{index}",
-            instrument=f"m{index}:YES",
-            symbol="ZECUSD",
-            signal_ts_ns=index,
-            settled_ts_ns=index + 1,
-            cost_basis_usd=1.0,
-            realized_pnl_usd=(0.4 if index < 5 else -0.4),
-            shares=1.0,
-        )
+        settled(f"m{index}", index, 0.4 if index < 5 else -0.4)
         for index in range(10)
     ]
 

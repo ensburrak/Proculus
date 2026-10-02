@@ -1,0 +1,98 @@
+name: Export Cached OKX Replay Data
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/export-okx-replay-data.yml
+
+concurrency:
+  group: proculus-export-okx-replay-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build replay cache key
+        id: replay-key
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root=Path(".")
+          cfg_path=root/"config"/"trading.json"
+          if not cfg_path.exists():
+              cfg_path=root/"config.json"
+          cfg=json.loads(cfg_path.read_text(encoding="utf-8"))
+          subset={
+              "trade_parameters":cfg.get("trade_parameters",{}),
+              "symbol_filters":cfg.get("symbol_filters",{}),
+              "fetcher_sha256":hashlib.sha256(
+                  (root/"tools"/"fetch_okx_two_year_replay_data.py").read_bytes()
+              ).hexdigest(),
+          }
+          digest=hashlib.sha256(
+              json.dumps(subset,sort_keys=True,separators=(",",":")).encode("utf-8")
+          ).hexdigest()[:20]
+          today=datetime.now(timezone.utc).strftime("%Y-%m-%d")
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as fh:
+              fh.write(f"date={today}\n")
+              fh.write(f"digest={digest}\n")
+          PY
+
+      - name: Restore same-day OKX replay cache
+        id: replay-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            scratch/fresh_proculus_two_year/ohlcv
+            scratch/fresh_proculus_two_year/fetch_metadata.json
+          key: proculus-okx-730-${{ steps.replay-key.outputs.date }}-${{ steps.replay-key.outputs.digest }}
+
+      - name: Require replay cache
+        if: steps.replay-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Same-day replay cache unavailable."
+          exit 1
+
+      - name: Write export manifest
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("scratch/fresh_proculus_two_year")
+          files=sorted(str(p.relative_to(root)) for p in (root/"ohlcv").glob("*.parquet"))
+          manifest={
+              "source":"Proculus same-day OKX replay cache",
+              "history_days":730,
+              "parquet_file_count":len(files),
+              "files":files,
+          }
+          (root/"export_manifest.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
+          print(json.dumps({"parquet_file_count":len(files)}))
+          PY
+
+      - name: Upload replay dataset
+        uses: actions/upload-artifact@v4
+        with:
+          name: okx-730d-replay-data
+          path: |
+            scratch/fresh_proculus_two_year/ohlcv
+            scratch/fresh_proculus_two_year/fetch_metadata.json
+            scratch/fresh_proculus_two_year/export_manifest.json
+          compression-level: 6
+          retention-days: 3
+          if-no-files-found: error

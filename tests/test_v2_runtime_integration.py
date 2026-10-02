@@ -8,6 +8,7 @@ import main_bot_async
 import risk_manager
 from core.decision_pipeline import DecisionPipeline
 from runtime.execution_bridge import execute_decision
+from runtime.runtime_symbol_universe import resolve_runtime_symbols
 
 
 def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:
@@ -114,3 +115,92 @@ def test_legacy_facades_import_against_new_packages() -> None:
     assert callable(main_bot_async.main)
     assert callable(risk_manager.compute_stop_loss)
     assert controller_async.OFFICIAL_DECISION_PIPELINE == "proculus_pipeline_v2"
+
+
+
+def test_runtime_symbol_universe_preserves_explicit_symbols() -> None:
+    class NoDiscoveryExchange:
+        async def load_markets(self):
+            raise AssertionError("explicit symbols must bypass discovery")
+
+    cfg = {
+        "trade_parameters": {
+            "symbols": ["AAVE/USDT:USDT"],
+            "symbol_source": "okx_swap_all",
+        }
+    }
+    resolved = asyncio.run(resolve_runtime_symbols(NoDiscoveryExchange(), cfg))
+    assert resolved == ["AAVE/USDT:USDT"]
+
+
+def test_runtime_symbol_universe_applies_okx_swap_filters() -> None:
+    old_ms = 1_700_000_000_000
+
+    class DummyExchange:
+        async def load_markets(self):
+            return {
+                "BTC/USDT:USDT": {
+                    "symbol": "BTC/USDT:USDT",
+                    "id": "BTC-USDT-SWAP",
+                    "base": "BTC",
+                    "quote": "USDT",
+                    "settle": "USDT",
+                    "swap": True,
+                    "linear": True,
+                    "active": True,
+                    "info": {"listTime": str(old_ms)},
+                },
+                "THIN/USDT:USDT": {
+                    "symbol": "THIN/USDT:USDT",
+                    "id": "THIN-USDT-SWAP",
+                    "base": "THIN",
+                    "quote": "USDT",
+                    "settle": "USDT",
+                    "swap": True,
+                    "linear": True,
+                    "active": True,
+                    "info": {"listTime": str(old_ms)},
+                },
+                "ZEC/USDT:USDT": {
+                    "symbol": "ZEC/USDT:USDT",
+                    "id": "ZEC-USDT-SWAP",
+                    "base": "ZEC",
+                    "quote": "USDT",
+                    "settle": "USDT",
+                    "swap": True,
+                    "linear": True,
+                    "active": True,
+                    "info": {"listTime": str(old_ms)},
+                },
+            }
+
+        async def fetch_tickers(self):
+            return {
+                "BTC/USDT:USDT": {"bid": 100.0, "ask": 100.02, "last": 100.01, "quoteVolume": 100_000_000.0},
+                "THIN/USDT:USDT": {"bid": 10.0, "ask": 10.001, "last": 10.0, "quoteVolume": 1_000_000.0},
+                "ZEC/USDT:USDT": {"bid": 20.0, "ask": 20.001, "last": 20.0, "quoteVolume": 100_000_000.0},
+            }
+
+        async def fetch_funding_rates(self, symbols):
+            assert symbols == ["BTC/USDT:USDT"]
+            return {"BTC/USDT:USDT": {"fundingRate": 0.0001}}
+
+    cfg = {
+        "trade_parameters": {
+            "symbols": [],
+            "symbol_source": "okx_swap_all",
+            "symbol_quote": "USDT",
+            "symbol_exclude_bases": ["ZEC"],
+            "symbol_exclude_prefixes": ["TEST"],
+            "always_on_symbols": ["BTC/USDT"],
+        },
+        "symbol_filters": {
+            "min_24h_volume": 50_000_000,
+            "max_spread_pct": 0.05,
+            "min_listing_days": 90,
+            "max_funding_rate_abs": 0.001,
+        },
+        "performance": {"max_symbols_per_loop": 0},
+    }
+    resolved = asyncio.run(resolve_runtime_symbols(DummyExchange(), cfg))
+    assert resolved == ["BTC/USDT:USDT"]

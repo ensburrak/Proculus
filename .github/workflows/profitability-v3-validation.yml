@@ -1,0 +1,43 @@
+name: Profitability V3 Validation
+
+on:
+  push:
+    branches:
+      - integration/profitability-v3-20261003
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test tools
+        run: python -m pip install pytest pytest-asyncio ruff pandas numpy
+      - name: Compile V3 surfaces
+        run: python -m compileall -q decision research runtime tools
+      - name: Ruff V3 surfaces
+        run: ruff check decision/profitability_control.py decision/official_pipeline.py decision/strategy_router.py decision/regime_policy.py research/profitability_evidence.py runtime/strategy_release_gate.py runtime/execution_bridge.py tools/walk_forward_edge_validation.py tools/profitability_release_report.py tests/test_profitability_control_v3.py
+      - name: Profitability and runtime tests
+        run: python -m pytest -q tests/test_profitability_control_v3.py tests/test_v2_runtime_integration.py -o addopts=""
+      - name: Profitability release report is fail-closed without evidence
+        run: |
+          set +e
+          python tools/profitability_release_report.py
+          code=$?
+          set -e
+          test "$code" -eq 1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload=json.loads(Path("reports/profitability_release_latest.json").read_text())
+          assert payload["fail_closed"] is True
+          assert payload["passed"] is False
+          assert payload["blockers"]
+          PY

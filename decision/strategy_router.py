@@ -58,6 +58,41 @@ def _breakout_signal(item: dict[str, Any]) -> ExpertSignal | None:
     return None
 
 
+def _transition_signal(item: dict[str, Any], ta: dict[str, Any]) -> ExpertSignal | None:
+    mtf = item.get("mtf_features")
+    h1 = mtf.get("1h", {}) if isinstance(mtf, dict) and isinstance(mtf.get("1h"), dict) else {}
+    lower = mtf.get("15m", {}) if isinstance(mtf, dict) and isinstance(mtf.get("15m"), dict) else {}
+    close = _f(lower.get("close") or ta.get("close") or item.get("price"))
+    ema_fast = _f(lower.get("ema_fast") or lower.get("ema20") or ta.get("ema_fast"))
+    ema_slow = _f(lower.get("ema_slow") or lower.get("ema50") or ta.get("ema_slow"))
+    h1_fast = _f(h1.get("ema_fast") or h1.get("ema20"))
+    h1_slow = _f(h1.get("ema_slow") or h1.get("ema50"))
+    adx = _f(ta.get("adx"))
+    if None in (close, ema_fast, ema_slow, h1_fast, h1_slow, adx):
+        return None
+    if adx < 20.0:
+        return None
+    if close >= ema_fast > ema_slow and h1_fast >= h1_slow:
+        return ExpertSignal(
+            "transition_confirm.retest.long.15m.v1",
+            "long",
+            0.76,
+            "transition_confirmation",
+            ["15m reclaim confirmed", "1h structure non-bearish", "ADX recovered"],
+            1,
+        )
+    if close <= ema_fast < ema_slow and h1_fast <= h1_slow:
+        return ExpertSignal(
+            "transition_confirm.retest.short.15m.v1",
+            "short",
+            0.76,
+            "transition_confirmation",
+            ["15m rejection confirmed", "1h structure non-bullish", "ADX recovered"],
+            1,
+        )
+    return None
+
+
 def route_to_expert(*, regime: str, item: dict[str, Any], ta: dict[str, Any]) -> ExpertSignal | None:
     policy = get_regime_policy(regime)
     normalized = policy["regime"]
@@ -81,4 +116,6 @@ def route_to_expert(*, regime: str, item: dict[str, Any], ta: dict[str, Any]) ->
         return _range_signal(item, ta)
     if normalized == "compression":
         return _breakout_signal(item)
+    if normalized == "transition":
+        return _transition_signal(item, ta)
     return None

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import sys
@@ -522,6 +523,52 @@ def group_stats(trades: list[OpenTrade], field: str) -> dict[str, Any]:
     return out
 
 
+def point_in_time_setup_evidence(
+    *,
+    setup_id: str,
+    closed: list[OpenTrade],
+    min_samples: int = 100,
+) -> dict[str, Any]:
+    items = [t for t in closed if t.setup_id == setup_id and t.risk_usd > 0]
+    rvals = [t.net_pnl / t.risk_usd for t in items]
+    wins = [r for r in rvals if r > 0]
+    losses = [r for r in rvals if r <= 0]
+    n = len(rvals)
+    expectancy = sum(rvals) / n if n else 0.0
+    if n > 1:
+        mean_r = expectancy
+        variance = sum((r - mean_r) ** 2 for r in rvals) / n
+        se = math.sqrt(max(variance, 0.0)) / math.sqrt(n)
+    else:
+        se = 0.0
+    ci_low = expectancy - 1.96 * se
+    profit_factor = (
+        sum(wins) / abs(sum(losses))
+        if losses
+        else (999.0 if wins else 0.0)
+    )
+    if n < min_samples:
+        return {
+            "status": "learning_probe",
+            "allowed": True,
+            "size_scale": 0.25,
+            "samples": n,
+            "profit_factor": profit_factor,
+            "expectancy_r": expectancy,
+            "expectancy_r_ci95_low": ci_low,
+        }
+    allowed = profit_factor >= 1.15 and expectancy >= 0.05 and ci_low > 0.0
+    return {
+        "status": "validated" if allowed else "blocked_negative_edge",
+        "allowed": allowed,
+        "size_scale": 1.0 if allowed else 0.0,
+        "samples": n,
+        "profit_factor": profit_factor,
+        "expectancy_r": expectancy,
+        "expectancy_r_ci95_low": ci_low,
+    }
+
+
 def simulate(
     *,
     candidates: list[Candidate],
@@ -563,6 +610,22 @@ def simulate(
             skipped["zero_risk_scale"] += 1
             continue
 
+        evidence = point_in_time_setup_evidence(
+            setup_id=cand.setup_id,
+            closed=closed,
+            min_samples=100,
+        )
+        if not bool(evidence["allowed"]):
+            skipped["setup_edge_blocked"] += 1
+            continue
+        effective_risk_scale = min(
+            float(cand.risk_scale),
+            float(evidence["size_scale"]),
+        )
+        if effective_risk_scale <= 0.0:
+            skipped["setup_edge_zero_scale"] += 1
+            continue
+
         frame = frames[cand.symbol]
         raw_open = f(frame.iloc[cand.entry_idx]["open"])
         if raw_open <= 0:
@@ -571,12 +634,13 @@ def simulate(
         entry = adverse_entry(raw_open, cand.side, slip)
         stop_distance = max(cand.atr * 1.5, entry * 0.001)
         stop_pct = stop_distance / entry
-        risk_budget = cash * 0.0025 * cand.risk_scale
+        risk_budget = cash * 0.0025 * effective_risk_scale
         notional = min(
             risk_budget / max(stop_pct, 1e-9),
-            cash * 0.20 * cand.leverage,
+            cash * 0.20 * (1.0 if effective_risk_scale < 1.0 else cand.leverage),
         )
-        margin = notional / max(cand.leverage, 1.0)
+        effective_leverage = 1.0 if effective_risk_scale < 1.0 else cand.leverage
+        margin = notional / max(effective_leverage, 1.0)
         used_margin = sum(p.notional / max(p.leverage, 1.0) for p in positions)
         if notional <= 0 or used_margin + margin > cash * 0.95:
             skipped["margin_cap"] += 1
@@ -606,7 +670,7 @@ def simulate(
                 entry_price=entry,
                 exit_price=exit_price,
                 notional=notional,
-                leverage=cand.leverage,
+                leverage=effective_leverage,
                 entry_fee=entry_fee,
                 exit_fee=exit_fee,
                 funding=funding,
@@ -629,6 +693,29 @@ def simulate(
             max_dd = min(max_dd, (value - peak) / peak)
     rvals = [t.net_pnl / t.risk_usd for t in closed if t.risk_usd > 0]
 
+    trade_evidence = [
+        {
+            "symbol": t.symbol,
+            "setup_id": t.setup_id,
+            "strategy": t.strategy,
+            "regime": t.regime,
+            "direction": t.side,
+            "entry_time": t.entry_time.isoformat(),
+            "exit_time": t.exit_time.isoformat(),
+            "gross_pnl_usd": round(t.gross_pnl, 8),
+            "net_pnl_usd": round(t.net_pnl, 8),
+            "r_multiple_net": round(t.net_pnl / t.risk_usd, 8) if t.risk_usd > 0 else 0.0,
+            "fee_usd": round(t.entry_fee + t.exit_fee, 8),
+            "funding_usd": round(t.funding, 8),
+            "cost_drag_usd": round((t.entry_fee + t.exit_fee + t.funding), 8),
+            "slippage_bps": float(slippage_bps),
+            "filled": True,
+            "order_type": "market",
+            "exit_reason": t.exit_reason,
+        }
+        for t in closed
+    ]
+
     return {
         "initial_balance": round(initial_balance, 4),
         "final_balance": round(cash, 4),
@@ -646,6 +733,7 @@ def simulate(
         "by_setup": group_stats(closed, "setup_id"),
         "by_regime": group_stats(closed, "regime"),
         "by_symbol": group_stats(closed, "symbol"),
+        "trade_evidence": trade_evidence,
     }
 
 
@@ -664,7 +752,14 @@ def main() -> int:
     args = parser.parse_args()
 
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
-    v2_pipeline._load_config = lambda: cfg  # research replay cache, same config content
+    research_cfg = copy.deepcopy(cfg)
+    research_pipeline = research_cfg.setdefault("pipeline_v2", {})
+    research_profitability = research_pipeline.setdefault("profitability_control", {})
+    research_profitability["enabled"] = False
+    # Raw setup generation deliberately bypasses only the capital-authority gate.
+    # Point-in-time setup evidence is re-applied inside simulate() using only
+    # already-closed historical trades. Production/runtime config stays strict.
+    v2_pipeline._load_config = lambda: research_cfg
 
     requested_modes = [
         value.strip()
@@ -755,7 +850,7 @@ def main() -> int:
             "stochrsi_math": "Wilder RSI90 -> StochRSI90 -> K3/D3; shared runtime/replay implementation",
             "authority": "V2 and StochRSI90 remain independent until final same-symbol submit boundary",
             "combined_collision_policy": "highest confidence wins only when both authorities target the same symbol and entry timestamp",
-            "edge_gate": "research override edge_validated=True for V2 setup-edge measurement; production strict gate unchanged",
+            "edge_gate": "raw setup generation bypasses capital authority only; simulate() re-applies point-in-time setup evidence from already-closed trades, <100 samples limited to 0.25x learning probe, >=100 samples require PF>=1.15, expectancy>=0.05R and positive 95% lower bound",
             "ml_direction_authority": "disabled",
             "meta_quality": "not enforced because no calibrated point-in-time historical meta model is available",
             "entry": "next 15m open after closed-candle decision",

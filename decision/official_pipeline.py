@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .meta_quality_gate import evaluate_meta_quality_gate
+from .profitability_control import apply_profitability_control
 from .regime_policy import get_regime_policy, normalize_regime
 from .strategy_router import route_to_expert
 
@@ -181,7 +182,7 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
     if risk_scale < 1.0:
         leverage = 1
 
-    return {
+    decision = {
         "symbol": symbol,
         "action": "enter",
         "direction": expert.direction,
@@ -199,3 +200,4 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
         "edge_contract": {"validated": edge_ok, "strict": strict_edge, "size_scale": edge_scale},
         "ai_authority": {"directional": False, "role": "quality_advisory_only"},
     }
+    return apply_profitability_control(decision=decision, item=item, config=cfg)

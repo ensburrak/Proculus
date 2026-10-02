@@ -59,27 +59,45 @@ def _bull_item(*, edge_validated: bool = True, regime: str = "bull") -> dict:
     }
 
 
-def test_controller_async_runs_real_v2_decision_path() -> None:
+def test_controller_async_freezes_negative_oos_trend_probe() -> None:
     result = asyncio.run(controller_async.decide_batch([_bull_item()]))
     decision = result["BTC/USDT"]
 
-    assert decision["action"] == "enter"
-    assert decision["direction"] == "long"
+    assert decision["action"] == "hold"
     assert decision["pipeline"] == "v2"
-    assert decision["setup_id"].startswith("bull_trend.pullback.long")
-    assert decision["ai_authority"]["directional"] is False
-    assert 0.0 < decision["risk_scale"] <= 1.0
+    assert decision["reason"] == "learning probe setup frozen by negative OOS evidence"
+    assert decision["learning_probe"]["frozen"] is True
 
 
-def test_paper_learning_probe_collects_edge_at_capped_size() -> None:
-    result = asyncio.run(DecisionPipeline().decide_batch([_bull_item(edge_validated=False)]))
-    decision = result["BTC/USDT"]
+def test_paper_learning_probe_can_collect_unfrozen_edge_at_capped_size() -> None:
+    decision = process_symbol_decision(
+        item=_bull_item(edge_validated=False),
+        config_overrides={
+            "pipeline_v2": {
+                "strict_edge_evidence": True,
+                "allow_edge_cold_start": False,
+                "learning_probe_mode": {
+                    "enabled": True,
+                    "eligible_runtime_modes": ["paper"],
+                    "allow_sample_collection_without_edge": True,
+                    "max_leverage": 1,
+                    "max_size_scale": 0.25,
+                    "cold_start_size_scale_cap": 0.25,
+                    "regime_min_confidence_override": {"bull": 0.55},
+                    "tracked_setups": ["bull_trend.pullback.long.15m.v2"],
+                    "frozen_setups": [],
+                    "target_trades_per_setup": 100,
+                },
+            }
+        },
+    )
 
     assert decision["action"] == "enter"
     assert 0.0 < decision["risk_scale"] <= 0.25
     assert decision["lev"] == 1
     assert decision["edge_contract"]["mode"] == "learning_probe"
     assert decision["learning_probe"]["active"] is True
+    assert decision["learning_probe"]["frozen"] is False
 
 
 def test_live_strict_edge_evidence_still_fails_closed() -> None:
@@ -139,7 +157,12 @@ def test_paper_execution_bridge_never_sends_real_order() -> None:
             raise AssertionError("paper mode must never call create_order")
 
     item = _bull_item()
-    decision = asyncio.run(controller_async.decide_batch([item]))["BTC/USDT"]
+    decision = {
+        "action": "enter",
+        "direction": "long",
+        "risk_scale": 0.25,
+        "setup_id": "synthetic.paper.bridge.test",
+    }
     result = asyncio.run(execute_decision(DummyExchange(), item, decision, {}))
 
     assert result["status"] == "simulated"

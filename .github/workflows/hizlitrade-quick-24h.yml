@@ -5,6 +5,8 @@ on:
     branches:
       - research/hizlitrade-profitability-host-20261003
     paths:
+      - tools/fresh_hizlitrade_backtest.py
+      - hizlitrade/**
       - .github/workflows/hizlitrade-quick-24h.yml
 
 permissions:

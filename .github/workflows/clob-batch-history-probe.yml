@@ -28,7 +28,11 @@ jobs:
           anchor = (now // 300) * 300
           slug = f"btc-updown-5m-{anchor - 600}"
           gamma = "https://gamma-api.polymarket.com/events?" + urllib.parse.urlencode({"slug": slug})
-          with urllib.request.urlopen(gamma, timeout=20) as resp:
+          gamma_req = urllib.request.Request(
+              gamma,
+              headers={"User-Agent":"hizlitrade-clob-probe/1.0"},
+          )
+          with urllib.request.urlopen(gamma_req, timeout=20) as resp:
               events = json.loads(resp.read().decode("utf-8"))
           markets = events[0].get("markets") if events else []
           market = next((m for m in markets if m.get("slug") == slug), None)

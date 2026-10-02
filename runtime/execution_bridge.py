@@ -3,6 +3,8 @@ from __future__ import annotations
 import inspect
 from typing import Any
 
+from .strategy_release_gate import evaluate_strategy_release
+
 
 async def _await_maybe(value: Any) -> Any:
     return await value if inspect.isawaitable(value) else value
@@ -13,20 +15,29 @@ async def execute_decision(exchange: Any, item: dict[str, Any], decision: dict[s
         return {"status": "not_applicable", "order_sent": False}
 
     mode = str(item.get("runtime_mode") or "paper").lower()
-    if mode in {"paper", "sim", "demo", "dry", "dry-run"}:
+    release_gate = evaluate_strategy_release(item=item, decision=decision, config=config)
+    if mode in {"paper", "sim", "demo", "dry", "dry-run", "shadow", "testnet", "sandbox"}:
         return {
             "status": "simulated",
             "order_sent": False,
             "symbol": item.get("symbol"),
             "direction": decision.get("direction"),
             "risk_scale": decision.get("risk_scale"),
+            "strategy_release": release_gate,
+        }
+
+    if not bool(release_gate.get("allowed")):
+        return {
+            "status": "live_blocked_by_profitability_release_gate",
+            "order_sent": False,
+            "strategy_release": release_gate,
         }
 
     pipeline = config.get("pipeline_v2") if isinstance(config.get("pipeline_v2"), dict) else {}
     authority = config.get("ai_authority") if isinstance(config.get("ai_authority"), dict) else {}
     live_allowed = bool(pipeline.get("allow_live_exchange_side_effects", False)) and bool(authority.get("allow_live_exchange_side_effects", False))
     if not live_allowed:
-        return {"status": "live_blocked_by_policy", "order_sent": False}
+        return {"status": "live_blocked_by_policy", "order_sent": False, "strategy_release": release_gate}
 
     amount = item.get("order_size")
     if amount is None:

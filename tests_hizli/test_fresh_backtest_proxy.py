@@ -293,3 +293,70 @@ def test_gamma_successful_batch_does_not_refetch_absent_slugs_one_by_one(monkeyp
 
     assert set(result) == {present}
     assert fallback_calls == 0
+
+
+def test_nested_validation_split_is_chronological_and_purges_late_labels() -> None:
+    from hizlitrade.oos import MarketOutcome
+
+    markets = tuple(
+        MarketOutcome(
+            market_id=f"m{index}",
+            symbol="ZECUSD",
+            signal_ts_ns=index * 100,
+            settled_ts_ns=(index * 100) + (250 if index == 5 else 50),
+            trade_count=1,
+            cost_basis_usd=2.5,
+            realized_pnl_usd=1.0,
+            realized_return=0.4,
+            mean_abs_momentum_1s_bps=None,
+            mean_abs_oracle_basis_bps=None,
+        )
+        for index in range(12)
+    )
+
+    split = _MODULE.nested_train_validation_split(
+        markets,
+        min_fit_markets=5,
+        min_validation_markets=4,
+    )
+
+    assert split is not None
+    fit_ids, validation_ids, validation_start_ts_ns, purged = split
+    assert len(validation_ids) >= 4
+    assert set(fit_ids).isdisjoint(validation_ids)
+    assert max(
+        row.settled_ts_ns for row in markets if row.market_id in set(fit_ids)
+    ) < validation_start_ts_ns
+    assert "m5" in purged
+
+
+def test_nested_validation_requires_positive_market_ci() -> None:
+    positive = [
+        _MODULE.SettledTrade(
+            market_id=f"p{index}",
+            instrument=f"p{index}:YES",
+            symbol="ZECUSD",
+            signal_ts_ns=index,
+            settled_ts_ns=index + 1,
+            cost_basis_usd=1.0,
+            realized_pnl_usd=0.4,
+            shares=1.0,
+        )
+        for index in range(10)
+    ]
+    mixed = [
+        _MODULE.SettledTrade(
+            market_id=f"m{index}",
+            instrument=f"m{index}:YES",
+            symbol="ZECUSD",
+            signal_ts_ns=index,
+            settled_ts_ns=index + 1,
+            cost_basis_usd=1.0,
+            realized_pnl_usd=(0.4 if index < 5 else -0.4),
+            shares=1.0,
+        )
+        for index in range(10)
+    ]
+
+    assert _MODULE.nested_validation_passes(positive, min_markets=8)
+    assert not _MODULE.nested_validation_passes(mixed, min_markets=8)

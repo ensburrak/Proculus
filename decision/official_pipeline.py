@@ -82,7 +82,7 @@ def _edge_validated(item: dict[str, Any]) -> bool:
 
 
 def _adaptive_size(*, regime: str, confidence: float, meta_scale: float, cfg: dict[str, Any]) -> float:
-    sizing = cfg.get("adaptive_position_sizing") if isinstance(cfg.get("adaptive_position_sizing"), dict) else {}
+    sizing = cfg.get("adaptive_position_sizing") if isinstance(cfg.get("adaptive_position_sizing"), dict) else dict(cfg or {})
     caps = sizing.get("regime_size_caps") if isinstance(sizing.get("regime_size_caps"), dict) else {}
     defaults = {"bull": 1.0, "bear": 1.0, "range": 0.8, "compression": 0.75, "transition": 0.0, "shock": 0.0, "conflict": 0.0, "unknown": 0.0}
     defaults.update({str(k): float(v) for k, v in caps.items() if isinstance(v, (int, float))})
@@ -139,20 +139,33 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
         return _hold(symbol, regime, "expert direction rejected by regime policy")
 
     runtime_mode = _runtime_mode(item, cfg)
+    probe_cfg = pipeline.get("learning_probe_mode") if isinstance(pipeline.get("learning_probe_mode"), dict) else {}
+    probe_modes = {str(v).lower() for v in (probe_cfg.get("eligible_runtime_modes") or ["paper", "sim"])}
+    probe_active = bool(probe_cfg.get("enabled", False)) and runtime_mode in probe_modes
+
     strict_edge = bool(pipeline.get("strict_edge_evidence", True))
     edge_ok = _edge_validated(item)
     cold_start = bool(pipeline.get("allow_edge_cold_start", False)) and runtime_mode in {"paper", "sim", "demo", "dry-run", "dry"}
+    probe_without_edge = probe_active and bool(probe_cfg.get("allow_sample_collection_without_edge", False))
     edge_scale = 1.0
+    edge_mode = "validated"
     if strict_edge and not edge_ok:
-        if not cold_start:
+        if probe_without_edge:
+            probe_cap = float(probe_cfg.get("max_size_scale", 0.25) or 0.25)
+            cold_cap = float(probe_cfg.get("cold_start_size_scale_cap", probe_cap) or probe_cap)
+            edge_scale = max(0.01, min(probe_cap, cold_cap, 0.25))
+            edge_mode = "learning_probe"
+        elif cold_start:
+            edge_scale = max(0.10, min(0.25, float(pipeline.get("edge_cold_start_size_scale", 0.25) or 0.25)))
+            edge_mode = "cold_start"
+        else:
             return _hold(
                 symbol,
                 regime,
                 "strict edge evidence missing",
                 candidate_setup=expert.to_dict(),
-                edge_contract={"validated": False, "strict": True},
+                edge_contract={"validated": False, "strict": True, "mode": "blocked"},
             )
-        edge_scale = max(0.10, min(0.25, float(pipeline.get("edge_cold_start_size_scale", 0.25) or 0.25)))
 
     meta_cfg = pipeline.get("meta_quality_gate") if isinstance(pipeline.get("meta_quality_gate"), dict) else {}
     ai_part = dict(ai_part or {})
@@ -165,18 +178,29 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
         return _hold(symbol, regime, "meta quality veto", setup_id=expert.setup_id, meta_quality=meta.to_dict())
 
     confidence = max(0.0, min(1.0, float(expert.confidence)))
-    if confidence < float(policy["min_confidence"]):
+    min_confidence = float(policy["min_confidence"])
+    if probe_active:
+        overrides = probe_cfg.get("regime_min_confidence_override") if isinstance(probe_cfg.get("regime_min_confidence_override"), dict) else {}
+        try:
+            min_confidence = float(overrides.get(regime, min_confidence))
+        except (TypeError, ValueError):
+            pass
+    if confidence < min_confidence:
         return _hold(symbol, regime, "expert confidence below regime threshold", setup_id=expert.setup_id)
 
     sizing_cfg = pipeline.get("adaptive_position_sizing") if isinstance(pipeline.get("adaptive_position_sizing"), dict) else {}
     risk_scale = _adaptive_size(regime=regime, confidence=confidence, meta_scale=meta.size_scale, cfg=sizing_cfg)
     risk_scale = min(risk_scale, edge_scale)
+    if probe_active:
+        risk_scale = min(risk_scale, float(probe_cfg.get("max_size_scale", 0.25) or 0.25))
     if risk_scale <= 0.0:
         return _hold(symbol, regime, "risk sizing resolved to zero", setup_id=expert.setup_id)
 
     max_lev = int(policy["max_leverage"])
     trading_cfg = cfg.get("trading") if isinstance(cfg.get("trading"), dict) else {}
     max_lev = min(max_lev, int(trading_cfg.get("max_leverage", max_lev) or max_lev))
+    if probe_active:
+        max_lev = min(max_lev, int(probe_cfg.get("max_leverage", 1) or 1))
     leverage = max(1, max_lev)
     if risk_scale < 1.0:
         leverage = 1
@@ -196,6 +220,7 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
         "pipeline": "v2",
         "reason": " | ".join(expert.reasoning),
         "meta_quality": meta.to_dict(),
-        "edge_contract": {"validated": edge_ok, "strict": strict_edge, "size_scale": edge_scale},
+        "edge_contract": {"validated": edge_ok, "strict": strict_edge, "size_scale": edge_scale, "mode": edge_mode},
+        "learning_probe": {"active": probe_active, "max_size_scale": float(probe_cfg.get("max_size_scale", 0.25) or 0.25) if probe_active else None},
         "ai_authority": {"directional": False, "role": "quality_advisory_only"},
     }

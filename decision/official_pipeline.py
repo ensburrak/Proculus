@@ -131,17 +131,30 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
     if policy["action"] == "no_trade":
         return _hold(symbol, regime, f"{regime}: hard no-trade")
 
-    expert = route_to_expert(regime=regime, item=item, ta=ta)
+    runtime_mode = _runtime_mode(item, cfg)
+    probe_cfg = pipeline.get("learning_probe_mode") if isinstance(pipeline.get("learning_probe_mode"), dict) else {}
+    probe_modes = {str(v).lower() for v in (probe_cfg.get("eligible_runtime_modes") or ["paper", "sim"])}
+    probe_active = bool(probe_cfg.get("enabled", False)) and runtime_mode in probe_modes
+
+    router_min_confidence = float(policy["min_confidence"])
+    if probe_active:
+        overrides = probe_cfg.get("regime_min_confidence_override") if isinstance(probe_cfg.get("regime_min_confidence_override"), dict) else {}
+        try:
+            router_min_confidence = float(overrides.get(regime, router_min_confidence))
+        except (TypeError, ValueError):
+            pass
+
+    expert = route_to_expert(
+        regime=regime,
+        item=item,
+        ta=ta,
+        min_confidence_override=router_min_confidence,
+    )
     if expert is None:
         return _hold(symbol, regime, "no regime-compatible confirmed setup")
 
     if expert.direction not in policy["directions"]:
         return _hold(symbol, regime, "expert direction rejected by regime policy")
-
-    runtime_mode = _runtime_mode(item, cfg)
-    probe_cfg = pipeline.get("learning_probe_mode") if isinstance(pipeline.get("learning_probe_mode"), dict) else {}
-    probe_modes = {str(v).lower() for v in (probe_cfg.get("eligible_runtime_modes") or ["paper", "sim"])}
-    probe_active = bool(probe_cfg.get("enabled", False)) and runtime_mode in probe_modes
 
     strict_edge = bool(pipeline.get("strict_edge_evidence", True))
     edge_ok = _edge_validated(item)
@@ -178,13 +191,7 @@ def process_symbol_decision(*, item: dict[str, Any], ai_part: dict[str, Any] | N
         return _hold(symbol, regime, "meta quality veto", setup_id=expert.setup_id, meta_quality=meta.to_dict())
 
     confidence = max(0.0, min(1.0, float(expert.confidence)))
-    min_confidence = float(policy["min_confidence"])
-    if probe_active:
-        overrides = probe_cfg.get("regime_min_confidence_override") if isinstance(probe_cfg.get("regime_min_confidence_override"), dict) else {}
-        try:
-            min_confidence = float(overrides.get(regime, min_confidence))
-        except (TypeError, ValueError):
-            pass
+    min_confidence = router_min_confidence
     if confidence < min_confidence:
         return _hold(symbol, regime, "expert confidence below regime threshold", setup_id=expert.setup_id)
 

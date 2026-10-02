@@ -1,0 +1,112 @@
+name: Proculus Liquidity Sweep Research
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - tools/research_liquidity_sweep.py
+      - .github/workflows/liquidity-sweep-research.yml
+
+concurrency:
+  group: proculus-liquidity-sweep-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build replay cache key
+        id: replay-key
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root=Path(".")
+          cfg_path=root/"config"/"trading.json"
+          if not cfg_path.exists():
+              cfg_path=root/"config.json"
+          cfg=json.loads(cfg_path.read_text(encoding="utf-8"))
+          subset={
+              "trade_parameters":cfg.get("trade_parameters",{}),
+              "symbol_filters":cfg.get("symbol_filters",{}),
+              "fetcher_sha256":hashlib.sha256(
+                  (root/"tools"/"fetch_okx_two_year_replay_data.py").read_bytes()
+              ).hexdigest(),
+          }
+          digest=hashlib.sha256(
+              json.dumps(subset,sort_keys=True,separators=(",",":")).encode("utf-8")
+          ).hexdigest()[:20]
+          today=datetime.now(timezone.utc).strftime("%Y-%m-%d")
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as fh:
+              fh.write(f"date={today}\n")
+              fh.write(f"digest={digest}\n")
+          PY
+
+      - name: Restore same-day OKX replay cache
+        id: replay-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            scratch/fresh_proculus_two_year/ohlcv
+            scratch/fresh_proculus_two_year/fetch_metadata.json
+          key: proculus-okx-730-${{ steps.replay-key.outputs.date }}-${{ steps.replay-key.outputs.digest }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas pyarrow requests
+
+      - name: Fail if replay cache is unavailable
+        if: steps.replay-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Expected same-day OKX replay cache was not found."
+          exit 1
+
+      - name: Run liquidity-sweep research
+        run: |
+          mkdir -p scratch/liquidity_sweep_research
+          python tools/research_liquidity_sweep.py \
+            --data-dir scratch/fresh_proculus_two_year/ohlcv \
+            --days 730 \
+            --holdout-days 180 \
+            --embargo-hours 48 \
+            --initial-balance 10000 \
+            --fee-bps 5 \
+            --output scratch/liquidity_sweep_research/result.json
+
+      - name: Print result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("scratch/liquidity_sweep_research/result.json")
+          obj=json.loads(p.read_text())
+          print("LIQUIDITY_SWEEP_FINAL="+json.dumps({
+              "selected":obj.get("selected"),
+              "profiles":obj.get("profiles"),
+          },separators=(",",":")))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proculus-liquidity-sweep-research
+          path: scratch/liquidity_sweep_research/result.json
+          retention-days: 14
+          if-no-files-found: error

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.decision_pipeline import DecisionPipeline
+from decision.stochrsi_parallel import evaluate_stochrsi90
 from .execution_bridge import execute_decision
 from .runtime_analysis_services import _analyze_one
 
@@ -39,11 +40,46 @@ async def trading_loop_async_service(exchange: Any, symbols: list[str], *, runti
             decisions = await pipeline.decide_batch(items)
             for item in items:
                 symbol = str(item.get("symbol") or "")
-                decision = decisions.get(symbol, {"action": "hold", "reason": "missing decision"})
-                execution = await execute_decision(exchange, item, decision, cfg)
-                decision = dict(decision)
-                decision["execution"] = execution
-                latest[symbol] = decision
+                v2_decision = dict(
+                    decisions.get(symbol, {"action": "hold", "reason": "missing decision"})
+                )
+                v2_execution = await execute_decision(exchange, item, v2_decision, cfg)
+                v2_decision["execution"] = v2_execution
+
+                stoch_decision = evaluate_stochrsi90(
+                    item=item,
+                    ta=item.get("ta_pack") if isinstance(item.get("ta_pack"), dict) else {},
+                    config=cfg,
+                )
+                if (
+                    str(stoch_decision.get("action") or "").lower() == "enter"
+                    and stoch_decision.get("execution_allowed") is True
+                ):
+                    stoch_execution = await execute_decision(
+                        exchange,
+                        item,
+                        stoch_decision,
+                        cfg,
+                    )
+                else:
+                    stoch_execution = {
+                        "status": (
+                            "blocked_by_stochrsi_runtime_policy"
+                            if str(stoch_decision.get("action") or "").lower() == "enter"
+                            else "not_applicable"
+                        ),
+                        "order_sent": False,
+                    }
+                stoch_decision = dict(stoch_decision)
+                stoch_decision["execution"] = stoch_execution
+
+                # Preserve the public V2 decision shape for existing callers.
+                # Independent authorities are attached explicitly and never
+                # blended back into the V2 direction/confidence calculation.
+                v2_decision["parallel_decisions"] = {
+                    "stochrsi": stoch_decision,
+                }
+                latest[symbol] = v2_decision
 
         if once:
             return latest

@@ -9,6 +9,7 @@ import controller_async
 import main_bot_async
 import risk_manager
 from core.decision_pipeline import DecisionPipeline
+from decision.official_pipeline import process_symbol_decision
 from runtime.execution_bridge import execute_decision
 from runtime.runtime_symbol_universe import resolve_runtime_symbols
 
@@ -88,6 +89,35 @@ def test_live_strict_edge_evidence_still_fails_closed() -> None:
     assert decision["risk_scale"] == 0.0
     assert "edge evidence" in decision["reason"]
 
+
+
+
+def test_learning_probe_blocks_untracked_setup() -> None:
+    item = _bull_item(edge_validated=False)
+    decision = process_symbol_decision(
+        item=item,
+        config_overrides={
+            "pipeline_v2": {
+                "strict_edge_evidence": True,
+                "allow_edge_cold_start": False,
+                "learning_probe_mode": {
+                    "enabled": True,
+                    "eligible_runtime_modes": ["paper"],
+                    "allow_sample_collection_without_edge": True,
+                    "max_leverage": 1,
+                    "max_size_scale": 0.25,
+                    "regime_min_confidence_override": {"bull": 0.55},
+                    "tracked_setups": ["some.other.setup.v2"],
+                    "target_trades_per_setup": 100,
+                },
+            }
+        },
+    )
+
+    assert decision["action"] == "hold"
+    assert decision["risk_scale"] == 0.0
+    assert decision["reason"] == "learning probe setup not tracked"
+    assert decision["learning_probe"]["tracked"] is False
 
 def test_shock_regime_is_hard_no_trade() -> None:
     item = _bull_item()

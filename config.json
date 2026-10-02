@@ -965,17 +965,11 @@
       "target_trades_per_setup": 100,
       "tracked_setups": [
         "bull_trend.pullback.long.15m.v2",
-        "bull_trend.momentum_continuation.long.15m.v2",
-        "bear_trend.bounce_short.short.15m.v2",
-        "bear_trend.momentum_continuation.short.15m.v2",
+        "bear_trend.pullback.short.15m.v2",
         "range_revert.low_band_rejection.long.15m.v2",
         "range_revert.high_band_rejection.short.15m.v2",
         "compression_breakout.up_retest.long.15m.v2",
-        "compression_breakout.down_retest.short.15m.v2",
-        "transition_confirm.persistent_retest.long.15m.v2",
-        "transition_confirm.persistent_retest.short.15m.v2",
-        "technical_consensus.long.15m.v1",
-        "technical_consensus.short.15m.v1"
+        "compression_breakout.down_retest.short.15m.v2"
       ],
       "progress_file": "state/learning_probe_progress.json",
       "allow_sample_collection_without_edge": true

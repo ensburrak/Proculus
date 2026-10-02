@@ -1,0 +1,27 @@
+name: Regime Policy Smoke
+
+on:
+  pull_request:
+    paths:
+      - "meta_strategy_selector.py"
+      - "config.json"
+      - "tests/test_meta_strategy_selector_regime_adaptive.py"
+      - ".github/workflows/regime-policy-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regime-policy-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest numpy
+      - name: Run regime-adaptive selector tests
+        run: python -m pytest -q tests/test_meta_strategy_selector_regime_adaptive.py

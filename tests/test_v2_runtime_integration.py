@@ -101,3 +101,51 @@ def test_legacy_facades_import_against_new_packages() -> None:
     assert callable(main_bot_async.main)
     assert callable(risk_manager.compute_stop_loss)
     assert controller_async.OFFICIAL_DECISION_PIPELINE == "proculus_pipeline_v2"
+
+
+def _stoch_ta(**overrides) -> dict:
+    base = {
+        "stoch_rsi_warmup_ok": True,
+        "stoch_rsi_90_prev_k": 6.0,
+        "stoch_rsi_90_prev_d": 8.0,
+        "stoch_rsi_90_k": 8.0,
+        "stoch_rsi_90_d": 6.0,
+        "ema_fast": 105.0,
+        "ema_slow": 100.0,
+        "adx": 24.0,
+        "plus_di": 28.0,
+        "minus_di": 14.0,
+        "atr_pct": 0.012,
+        "volume_spike_ratio": 1.0,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_stochrsi90_is_an_independent_direction_authority() -> None:
+    from decision.stochrsi_parallel import evaluate_stochrsi90
+
+    result = evaluate_stochrsi90(
+        item={"symbol": "BTC/USDT", "runtime_mode": "paper", "regime": "bull"},
+        ta=_stoch_ta(),
+    )
+
+    assert result["action"] == "enter"
+    assert result["direction"] == "long"
+    assert result["pipeline"] == "stochrsi_parallel"
+    assert result["authority"] == "independent"
+    assert result["model_confirmation_required"] is False
+    assert result["max_leverage"] == 1.0
+
+
+def test_stochrsi90_fails_closed_in_never_trade_regimes() -> None:
+    from decision.stochrsi_parallel import evaluate_stochrsi90
+
+    for regime in ("shock", "unknown", "conflict"):
+        result = evaluate_stochrsi90(
+            item={"symbol": "BTC/USDT", "runtime_mode": "paper", "regime": regime},
+            ta=_stoch_ta(),
+        )
+        assert result["action"] == "hold"
+        assert result["direction"] == "neutral"
+        assert result["risk_scale"] == 0.0

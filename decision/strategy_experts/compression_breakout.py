@@ -46,7 +46,7 @@ def evaluate_compression(*, item: dict[str, Any], ta: dict[str, Any], max_levera
     if side is None or not _aligned(item,side):
         return None
 
-    score=0.70
+    score=0.60
     reasons=["compression range broken","1h/4h direction aligned"]
     if vol_z >= 1.8:
         score += 0.08; reasons.append(f"volume expansion {vol_z:.2f}z")

@@ -67,6 +67,8 @@ jobs:
             scratch/fresh_proculus_two_year/ohlcv
             scratch/fresh_proculus_two_year/fetch_metadata.json
           key: proculus-okx-730-${{ steps.replay-key.outputs.date }}-${{ steps.replay-key.outputs.digest }}
+          restore-keys: |
+            proculus-okx-730-
 
       - name: Install dependencies
         run: |

@@ -200,43 +200,123 @@ def score_row(row:pd.Series,p:dict[str,Any])->float:
 
 
 def build_signals(frames:dict[str,pd.DataFrame],p:dict[str,Any])->list[Signal]:
-    snapshots:dict[pd.Timestamp,list[tuple[str,int,pd.Series,float]]]={}
-    for symbol,df in frames.items():
-        for idx in range(250,len(df)-1):
-            ts=pd.Timestamp(df.iloc[idx]["timestamp"])
-            if ts.hour%int(p["rebalance_hours"])!=0:
-                continue
-            row=df.iloc[idx]
-            sc=score_row(row,p)
-            if not math.isfinite(sc):
-                continue
-            snapshots.setdefault(ts,[]).append((symbol,idx,row,sc))
-
-    out:list[Signal]=[]
-    sides=str(p["sides"])
+    rebalance=int(p["rebalance_hours"])
     top_k=int(p["top_k"])
-    for ts,rows in snapshots.items():
-        longs=[x for x in rows if sides in {"both","long"} and eligible(x[2],"long",p)]
-        shorts=[x for x in rows if sides in {"both","short"} and eligible(x[2],"short",p)]
-        longs.sort(key=lambda x:x[3],reverse=True)
-        shorts.sort(key=lambda x:x[3])
-        chosen=longs[:top_k]+shorts[:top_k]
-        for symbol,idx,row,sc in chosen:
-            side="long" if sc>=0 else "short"
-            if side=="long" and not eligible(row,"long",p):
-                continue
-            if side=="short" and not eligible(row,"short",p):
-                continue
-            df=frames[symbol]
-            atr=f(row.get("atr"))
-            if atr<=0:
-                continue
-            out.append(Signal(
-                symbol=symbol,decision_time=ts,entry_time=pd.Timestamp(df.iloc[idx+1]["timestamp"]),
-                side=side,score=sc,atr=atr,entry_idx=idx+1,
-                stop_atr_mult=float(p["stop_atr_mult"]),tp_r_target=float(p["tp_r_target"]),
-                max_hold_bars=int(p["max_hold_bars"]),
-            ))
+    sides=str(p["sides"])
+    rows:list[pd.DataFrame]=[]
+
+    for symbol,df in frames.items():
+        if len(df)<252:
+            continue
+        work=df.iloc[250:-1].copy()
+        if work.empty:
+            continue
+        work=work[work["timestamp"].dt.hour.mod(rebalance).eq(0)]
+        if work.empty:
+            continue
+
+        close=work["close"].astype(float)
+        e20=work["ema20"].astype(float)
+        e50=work["ema50"].astype(float)
+        e200=work["ema200"].astype(float)
+        adx=work["adx"].astype(float)
+        h4adx=work["adx_4h"].astype(float)
+        atrp=work["atr_ratio"].astype(float)
+        h4c=work["close_4h"].astype(float)
+        h4e20=work["ema20_4h"].astype(float)
+        h4e50=work["ema50_4h"].astype(float)
+        h4e200=work["ema200_4h"].astype(float)
+        r=work["rsi"].astype(float)
+        h4r=work["rsi_4h"].astype(float)
+        vz=work["vol_z"].astype(float)
+
+        base=(
+            close.gt(0)&e20.gt(0)&e50.gt(0)&e200.gt(0)&
+            h4c.gt(0)&h4e20.gt(0)&h4e50.gt(0)&h4e200.gt(0)&
+            adx.ge(float(p["adx_min"]))&
+            h4adx.ge(float(p["h4_adx_min"]))&
+            atrp.ge(0.0015)&atrp.le(0.05)&
+            vz.abs().lt(3.5)
+        )
+        long_ok=(
+            base&
+            e20.gt(e50)&e50.gt(e200)&close.gt(e20)&
+            h4e20.gt(h4e50)&h4e50.gt(h4e200)&h4c.gt(h4e20)&
+            r.between(48,72)&h4r.between(48,75)
+        )
+        short_ok=(
+            base&
+            e20.lt(e50)&e50.lt(e200)&close.lt(e20)&
+            h4e20.lt(h4e50)&h4e50.lt(h4e200)&h4c.lt(h4e20)&
+            r.between(28,52)&h4r.between(25,52)
+        )
+
+        vol=work["vol_24h"].astype(float).clip(lower=1e-6)
+        mode=str(p["momentum"])
+        if mode=="ret_24h":
+            raw=work["ret_24h"].astype(float)
+        elif mode=="ret_72h":
+            raw=work["ret_72h"].astype(float)
+        else:
+            raw=(
+                0.55*work["ret_24h"].astype(float)+
+                0.30*work["ret_72h"].astype(float)+
+                0.15*work["ret_12h"].astype(float)
+            )
+        score=raw/vol
+
+        tmp=pd.DataFrame({
+            "timestamp":work["timestamp"],
+            "symbol":symbol,
+            "entry_idx":work.index.to_numpy()+1,
+            "score":score,
+            "atr":work["atr"].astype(float),
+            "long_ok":long_ok,
+            "short_ok":short_ok,
+        })
+        tmp=tmp.replace([np.inf,-np.inf],np.nan).dropna(subset=["score","atr"])
+        if not tmp.empty:
+            rows.append(tmp)
+
+    if not rows:
+        return []
+
+    panel=pd.concat(rows,ignore_index=True)
+    selected:list[pd.DataFrame]=[]
+    for _,group in panel.groupby("timestamp",sort=True):
+        if sides in {"both","long"}:
+            longs=group[group["long_ok"]&group["score"].gt(0)]
+            if not longs.empty:
+                selected.append(longs.nlargest(top_k,"score"))
+        if sides in {"both","short"}:
+            shorts=group[group["short_ok"]&group["score"].lt(0)]
+            if not shorts.empty:
+                selected.append(shorts.nsmallest(top_k,"score"))
+
+    if not selected:
+        return []
+
+    chosen=pd.concat(selected,ignore_index=True)
+    out:list[Signal]=[]
+    for row in chosen.itertuples(index=False):
+        symbol=str(row.symbol)
+        idx=int(row.entry_idx)
+        df=frames[symbol]
+        if idx>=len(df):
+            continue
+        side="long" if float(row.score)>0 else "short"
+        out.append(Signal(
+            symbol=symbol,
+            decision_time=pd.Timestamp(row.timestamp),
+            entry_time=pd.Timestamp(df.iloc[idx]["timestamp"]),
+            side=side,
+            score=float(row.score),
+            atr=float(row.atr),
+            entry_idx=idx,
+            stop_atr_mult=float(p["stop_atr_mult"]),
+            tp_r_target=float(p["tp_r_target"]),
+            max_hold_bars=int(p["max_hold_bars"]),
+        ))
     return sorted(out,key=lambda x:(x.entry_time,-abs(x.score),x.symbol))
 
 

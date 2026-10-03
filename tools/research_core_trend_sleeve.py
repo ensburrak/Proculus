@@ -58,12 +58,14 @@ def _symbol_backtest(
     target_vol: float,
     one_way_cost: float,
     funding_per_4h: float,
+    ema_fast: int = 50,
+    ema_slow: int = 200,
 ) -> SymbolResult | None:
     if len(df)<220:
         return None
 
-    ef=_ema(df["close"],50)
-    es=_ema(df["close"],200)
+    ef=_ema(df["close"],ema_fast)
+    es=_ema(df["close"],ema_slow)
     raw=np.where(ef>es,1.0,np.where(ef<es,-1.0,0.0))
     signal=pd.Series(raw,index=df.index).shift(1).fillna(0.0)
 
@@ -145,6 +147,8 @@ def _portfolio(
     target_vol: float,
     one_way_cost: float,
     funding_per_4h: float,
+    ema_fast: int = 50,
+    ema_slow: int = 200,
 ) -> dict[str,Any]:
     results={}
     for symbol in symbols:
@@ -154,6 +158,7 @@ def _portfolio(
         result=_symbol_backtest(
             df,start=start,end=end,target_vol=target_vol,
             one_way_cost=one_way_cost,funding_per_4h=funding_per_4h,
+            ema_fast=ema_fast,ema_slow=ema_slow,
         )
         if result is not None:
             result.symbol=symbol
@@ -284,6 +289,34 @@ def main() -> int:
         })
         cursor=end
 
+    neighborhood=[]
+    for fast,slow in ((40,180),(40,200),(50,180),(50,200),(50,220),(60,200),(60,220)):
+        train=_portfolio(
+            frames,available,start=data_start,end=train_end,target_vol=args.target_vol,
+            one_way_cost=costs["slippage_15bps"],funding_per_4h=funding_per_4h,
+            ema_fast=fast,ema_slow=slow,
+        )
+        validation=_portfolio(
+            frames,available,start=validation_start,end=development_end,target_vol=args.target_vol,
+            one_way_cost=costs["slippage_15bps"],funding_per_4h=funding_per_4h,
+            ema_fast=fast,ema_slow=slow,
+        )
+        robust=(
+            float(train["return_pct"])>0
+            and float(validation["return_pct"])>0
+            and float(train["profit_factor"])>=1.15
+            and float(validation["profit_factor"])>=1.15
+            and float(train["max_drawdown_pct"])<=15.0
+            and float(validation["max_drawdown_pct"])<=15.0
+        )
+        neighborhood.append({
+            "ema_fast":fast,
+            "ema_slow":slow,
+            "train":_public(train),
+            "validation":_public(validation),
+            "robust":robust,
+        })
+
     leave_one_out=[]
     for omitted in available:
         subset=[s for s in available if s!=omitted]
@@ -304,6 +337,7 @@ def main() -> int:
     t=period_results["train"]["slippage_15bps"]
     v=period_results["validation"]["slippage_15bps"]
     rolling_positive=sum(1 for x in rolling if float(x["return_pct"])>0.0)
+    neighborhood_pass=sum(1 for x in neighborhood if x["robust"])
     loo_pass=sum(
         1 for x in leave_one_out
         if float(x["train"]["profit_factor"])>=1.15
@@ -320,6 +354,7 @@ def main() -> int:
         "validation_dd_lte_15pct":float(v["max_drawdown_pct"])<=15.0,
         "validation_trades_gte_40":int(v["trades"])>=40,
         "rolling_positive_share_gte_60pct":rolling_positive/max(1,len(rolling))>=0.60,
+        "ema_neighborhood_robust_gte_6_of_7":neighborhood_pass>=6,
         "leave_one_out_all_robust":loo_pass==len(leave_one_out),
     }
     shadow_candidate=all(research_checks.values())
@@ -363,6 +398,7 @@ def main() -> int:
         },
         "results":period_results,
         "rolling_120d_high_cost":rolling,
+        "ema_neighborhood_high_cost":neighborhood,
         "leave_one_out_high_cost":leave_one_out,
         "research_checks":research_checks,
         "shadow_candidate":shadow_candidate,
@@ -386,6 +422,8 @@ def main() -> int:
         "holdout_high_cost":{k:v for k,v in period_results["retrospective_holdout"]["slippage_15bps"].items() if k!="by_symbol"},
         "rolling_positive":rolling_positive,
         "rolling_total":len(rolling),
+        "ema_neighborhood_pass":neighborhood_pass,
+        "ema_neighborhood_total":len(neighborhood),
         "leave_one_out_pass":loo_pass,
         "leave_one_out_total":len(leave_one_out),
         "release_blockers":release_blockers,

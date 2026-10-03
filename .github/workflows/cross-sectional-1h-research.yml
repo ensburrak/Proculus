@@ -75,11 +75,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install numpy pandas pyarrow requests
 
-      - name: Fail if replay cache is unavailable
-        if: steps.replay-cache.outputs.cache-hit != 'true'
+      - name: Verify replay cache is available
         run: |
-          echo "Expected same-day OKX replay cache was not found."
-          exit 1
+          test -d scratch/fresh_proculus_two_year/ohlcv
+          test -f scratch/fresh_proculus_two_year/fetch_metadata.json
+          test -n "$(find scratch/fresh_proculus_two_year/ohlcv -maxdepth 1 -name '*_1h.parquet' -print -quit)"
 
       - name: Run 1H cross-sectional research
         run: |

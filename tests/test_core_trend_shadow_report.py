@@ -17,6 +17,7 @@ def _events(days: int = 35, symbols: int = 8, up: bool = True):
             rows.append(
                 {
                     "strategy_id": "core_trend_4h_ema50_200_voltarget.v1",
+                    "policy_fingerprint_sha256": "a" * 64,
                     "symbol": name,
                     "status": "shadow_signal",
                     "closed_bar_timestamp": ts.isoformat(),
@@ -87,3 +88,21 @@ def test_hypothetical_tca_never_satisfies_live_gate() -> None:
     assert report["real_tca"]["passed"] is False
     assert report["live_candidate"] is False
     assert "real_tca" in report["blockers"]
+
+
+def test_mixed_policy_fingerprints_fail_closed() -> None:
+    rows = _events()
+    rows[-1]["policy_fingerprint_sha256"] = "b" * 64
+    report = build_report(
+        events=rows,
+        policy=_policy(),
+        tca={"scope": "real_paper_execution", "summary": {"fills": 100}},
+        one_way_cost_bps=1.0,
+        funding_bp_per_4h=0.0,
+    )
+
+    assert report["coverage"]["policy_consistent"] is False
+    assert report["statistical_checks"]["policy_consistent"] is False
+    assert report["statistical_passed"] is False
+    assert report["live_candidate"] is False
+    assert "policy_consistent" in report["blockers"]

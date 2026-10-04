@@ -54,6 +54,8 @@ def test_core_trend_shadow_emits_long_without_order_authority() -> None:
     assert decision["status"] == "shadow_signal"
     assert decision["desired_direction"] == "long"
     assert decision["target_exposure"] > 0
+    assert decision["entry_reference_price"] is not None
+    assert decision["entry_reference_price"] > 0
     assert decision["shadow_only"] is True
     assert decision["order_authorized"] is False
     assert decision["research_contract"]["live_release"] is False
@@ -100,7 +102,8 @@ def test_core_trend_shadow_appends_forward_evidence(tmp_path: Path) -> None:
         _config(),
     )
 
-    append_core_trend_shadow_event(decision, destination=destination)
+    assert append_core_trend_shadow_event(decision, destination=destination) is True
+    assert append_core_trend_shadow_event(decision, destination=destination) is False
     rows = destination.read_text(encoding="utf-8").splitlines()
 
     assert len(rows) == 1
@@ -108,3 +111,22 @@ def test_core_trend_shadow_appends_forward_evidence(tmp_path: Path) -> None:
     assert payload["strategy_id"] == "core_trend_4h_ema50_200_voltarget.v1"
     assert payload["order_authorized"] is False
     assert payload["recorded_at"]
+
+
+def test_shadow_evidence_accepts_next_closed_bar_as_new_observation(tmp_path: Path) -> None:
+    destination = tmp_path / "shadow.jsonl"
+    frame = _frame()
+    first = build_core_trend_shadow_decision(
+        {"symbol": "BTC/USDT:USDT", "mtf_data": {"4h": frame}},
+        _config(),
+    )
+    next_frame = _frame(rows=261)
+    second = build_core_trend_shadow_decision(
+        {"symbol": "BTC/USDT:USDT", "mtf_data": {"4h": next_frame}},
+        _config(),
+    )
+
+    assert first["closed_bar_timestamp"] != second["closed_bar_timestamp"]
+    assert append_core_trend_shadow_event(first, destination=destination) is True
+    assert append_core_trend_shadow_event(second, destination=destination) is True
+    assert len(destination.read_text(encoding="utf-8").splitlines()) == 2

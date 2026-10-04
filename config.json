@@ -1880,9 +1880,11 @@
     "evidence_path": "reports/core_trend_shadow_events.jsonl",
     "forward_promotion": {
       "min_shadow_days": 30,
-      "min_observations": 180,
+      "min_observations": 500,
+      "min_symbols": 8,
       "min_profit_factor": 1.2,
-      "min_expectancy_r": 0.05,
+      "min_avg_observation_bps": 0,
+      "max_drawdown_pct": 15,
       "require_positive_ci95_low": true,
       "require_real_tca": true,
       "allow_live": false

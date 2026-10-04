@@ -38,6 +38,7 @@ def _load_events(path: Path) -> list[dict[str, Any]]:
             continue
         key = (
             str(row.get("strategy_id") or ""),
+            str(row.get("policy_fingerprint_sha256") or ""),
             str(row.get("symbol") or ""),
             str(row.get("closed_bar_timestamp") or ""),
         )
@@ -196,6 +197,14 @@ def build_report(
 
     unique_days = len(by_day)
     unique_symbols = len({row["symbol"] for row in observations})
+    policy_fingerprints = sorted(
+        {
+            str(row.get("policy_fingerprint_sha256") or "")
+            for row in events
+            if str(row.get("policy_fingerprint_sha256") or "")
+        }
+    )
+    policy_consistent = len(policy_fingerprints) == 1
     real_tca_ok, real_tca_fills, tca_scope = _tca_is_real(tca)
 
     thresholds = {
@@ -215,6 +224,7 @@ def build_report(
     }
 
     checks = {
+        "policy_consistent": policy_consistent,
         "shadow_days": unique_days >= thresholds["min_shadow_days"],
         "observations": len(observations) >= thresholds["min_observations"],
         "symbols": unique_symbols >= thresholds["min_symbols"],
@@ -252,6 +262,8 @@ def build_report(
             "resolved_observations": len(observations),
             "unique_days": unique_days,
             "unique_symbols": unique_symbols,
+            "policy_fingerprints": policy_fingerprints,
+            "policy_consistent": policy_consistent,
         },
         "metrics": {
             "profit_factor": profit_factor,

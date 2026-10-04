@@ -95,6 +95,78 @@ jobs:
             fi
           done
 
+      - name: Build explicit final 180-day holdout metrics
+        run: |
+          python - <<'PY'
+          import json, math
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+
+          root=Path("scratch/proculus_profitability_v3_730d/results")
+          report=json.loads((root/"fresh_two_year_v3.json").read_text(encoding="utf-8"))
+          now=datetime.now(timezone.utc)
+          cutoff=now-timedelta(days=180)
+
+          def metrics(rows):
+              selected=[]
+              for row in rows:
+                  try:
+                      ts=datetime.fromisoformat(str(row.get("exit_time","")).replace("Z","+00:00"))
+                  except Exception:
+                      continue
+                  if ts >= cutoff:
+                      selected.append(row)
+              pnls=[float(r.get("net_pnl_usd") or 0.0) for r in selected]
+              rvals=[float(r.get("r_multiple_net") or 0.0) for r in selected]
+              wins=[x for x in pnls if x>0]
+              losses=[x for x in pnls if x<0]
+              n=len(rvals)
+              mean=sum(rvals)/n if n else 0.0
+              if n>1:
+                  var=sum((x-mean)**2 for x in rvals)/(n-1)
+                  se=math.sqrt(var/n)
+                  ci_low=mean-1.96*se
+              else:
+                  ci_low=mean
+              by_setup={}
+              for row in selected:
+                  key=str(row.get("setup_id") or "unknown")
+                  by_setup.setdefault(key,[]).append(row)
+              setup_summary={}
+              for key,vals in sorted(by_setup.items()):
+                  vp=[float(x.get("net_pnl_usd") or 0.0) for x in vals]
+                  vr=[float(x.get("r_multiple_net") or 0.0) for x in vals]
+                  vw=[x for x in vp if x>0]; vl=[x for x in vp if x<0]
+                  vm=sum(vr)/len(vr) if vr else 0.0
+                  setup_summary[key]={
+                      "trades":len(vals),
+                      "profit_factor":(sum(vw)/abs(sum(vl))) if vl else (999.0 if vw else 0.0),
+                      "expectancy_r":vm,
+                      "net_pnl_usd":sum(vp),
+                  }
+              return {
+                  "cutoff_utc":cutoff.isoformat(),
+                  "trades":len(selected),
+                  "profit_factor":(sum(wins)/abs(sum(losses))) if losses else (999.0 if wins else 0.0),
+                  "expectancy_r":mean,
+                  "expectancy_r_ci95_low":ci_low,
+                  "net_pnl_usd":sum(pnls),
+                  "setup_summary":setup_summary,
+              }
+
+          holdout={}
+          for mode, scenarios in report.get("scenarios",{}).items():
+              holdout[mode]={}
+              for name,payload in scenarios.items():
+                  holdout[mode][name]=metrics(payload.get("trade_evidence") or [])
+          (root/"holdout_180d.json").write_text(json.dumps({
+              "schema":"proculus-final-holdout-180d-v1",
+              "previous_backtests_used":False,
+              "holdout_days":180,
+              "metrics":holdout,
+          },indent=2,ensure_ascii=False),encoding="utf-8")
+          PY
+
       - name: Build setup-level OOS observatory using OOS evidence only
         run: |
           python - <<'PY'
@@ -139,6 +211,8 @@ jobs:
               summary["walk_forward"][mode]=json.loads(wf_path.read_text()) if wf_path.exists() else {}
           obs_path=root/"results/setup_edge_observatory.json"
           summary["setup_edge_observatory"]=json.loads(obs_path.read_text()) if obs_path.exists() else {}
+          holdout_path=root/"results/holdout_180d.json"
+          summary["holdout_180d"]=json.loads(holdout_path.read_text()) if holdout_path.exists() else {}
           (root/"summary.json").write_text(json.dumps(summary,indent=2,ensure_ascii=False),encoding="utf-8")
           print("PROCULUS_V3_RESULT="+json.dumps(summary,separators=(",",":"),ensure_ascii=False))
           PY

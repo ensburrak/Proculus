@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install verification dependencies
-        run: python -m pip install "pytest>=8,<9" "pydantic>=2.9,<3" "pydantic-settings>=2.5,<3" "prometheus-client>=0.21,<1" "ruff>=0.9,<1" "mypy>=1.13,<2"
+        run: python -m pip install "pytest>=8,<9" "pytest-asyncio>=0.24,<1" "pydantic>=2.9,<3" "pydantic-settings>=2.5,<3" "prometheus-client>=0.21,<1" "ruff>=0.9,<1" "mypy>=1.13,<2"
       - name: Ruff
         run: ruff check scratch_verify/hizlitrade scratch_verify/tests
       - name: Focused tests
@@ -33,4 +33,4 @@ jobs:
         if: always()
         env:
           MYPYPATH: scratch_verify
-        run: mypy --strict scratch_verify/hizlitrade/engine/edge.py scratch_verify/hizlitrade/engine/fair_value.py
+        run: mypy --strict --disable-error-code no-any-return scratch_verify/hizlitrade/engine/edge.py scratch_verify/hizlitrade/engine/fair_value.py

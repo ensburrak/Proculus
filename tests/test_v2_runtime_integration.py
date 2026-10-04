@@ -438,3 +438,88 @@ def test_stochrsi_parallel_remains_independent_but_shadow_only() -> None:
     assert lane["demo_orders_enabled"] is False
     assert lane["live_orders_enabled"] is False
 
+
+
+def test_runtime_core_trend_shadow_never_creates_second_execution(monkeypatch) -> None:
+    from runtime import runtime_loop_services as loop
+
+    item = {
+        "symbol": "BTC/USDT:USDT",
+        "runtime_mode": "paper",
+        "mtf_data": {},
+    }
+    execution_calls: list[str] = []
+    evidence_rows: list[dict] = []
+
+    async def fake_analyze(_exchange, symbol, runtime_mode="paper"):
+        assert symbol == "BTC/USDT:USDT"
+        assert runtime_mode == "paper"
+        return dict(item)
+
+    async def fake_decide_batch(_self, items):
+        assert len(items) == 1
+        return {
+            "BTC/USDT:USDT": {
+                "action": "hold",
+                "reason": "primary hold",
+            }
+        }
+
+    async def fake_execute(_exchange, _item, decision, _cfg):
+        execution_calls.append(str(decision.get("action") or ""))
+        return {"status": "simulated", "order_sent": False}
+
+    def fake_stoch(_item, _cfg):
+        return {
+            "action": "hold",
+            "order_authorized": False,
+        }
+
+    def fake_shadow(_item, _cfg):
+        return {
+            "strategy_id": "core_trend_4h_ema50_200_voltarget.v1",
+            "status": "shadow_signal",
+            "action": "observe",
+            "desired_direction": "long",
+            "target_exposure": 0.5,
+            "shadow_only": True,
+            "order_authorized": False,
+        }
+
+    def fake_append(decision, **_kwargs):
+        evidence_rows.append(dict(decision))
+
+    monkeypatch.setattr(loop, "_analyze_one", fake_analyze)
+    monkeypatch.setattr(loop.DecisionPipeline, "decide_batch", fake_decide_batch)
+    monkeypatch.setattr(loop, "execute_decision", fake_execute)
+    monkeypatch.setattr(loop, "build_stochrsi_parallel_decision", fake_stoch)
+    monkeypatch.setattr(loop, "build_core_trend_shadow_decision", fake_shadow)
+    monkeypatch.setattr(loop, "append_core_trend_shadow_event", fake_append)
+
+    result = asyncio.run(
+        loop.trading_loop_async_service(
+            object(),
+            ["BTC/USDT:USDT"],
+            runtime_mode="paper",
+            once=True,
+        )
+    )
+
+    assert execution_calls == ["hold"]
+    shadow = result["BTC/USDT:USDT"]["core_trend_shadow"]
+    assert shadow["shadow_only"] is True
+    assert shadow["order_authorized"] is False
+    assert shadow["action"] == "observe"
+    assert evidence_rows == [shadow]
+
+
+def test_core_trend_shadow_config_can_never_authorize_live() -> None:
+    config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    shadow = config["core_trend_shadow"]
+
+    assert shadow["enabled"] is True
+    assert shadow["shadow_only"] is True
+    assert shadow["order_authorized"] is False
+    assert shadow["forward_promotion"]["allow_live"] is False
+    assert shadow["forward_promotion"]["require_positive_ci95_low"] is True
+    assert shadow["forward_promotion"]["require_real_tca"] is True

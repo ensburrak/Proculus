@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from datetime import UTC, datetime
@@ -61,8 +62,31 @@ def build_core_trend_shadow_decision(
         if str(value).strip()
     }
 
+    policy_payload = {
+        "strategy_id": strategy_id,
+        "universe": sorted(allowed_universe),
+        "ema_fast": int(policy.get("ema_fast", 50) or 50),
+        "ema_slow": int(policy.get("ema_slow", 200) or 200),
+        "vol_window_bars": int(policy.get("vol_window_bars", 180) or 180),
+        "min_closed_bars": int(policy.get("min_closed_bars", 220) or 220),
+        "target_annualized_vol": float(
+            policy.get("target_annualized_vol", 0.20) or 0.20
+        ),
+        "per_symbol_exposure_cap": float(
+            policy.get("per_symbol_exposure_cap", 1.0) or 1.0
+        ),
+    }
+    policy_fingerprint = hashlib.sha256(
+        json.dumps(
+            policy_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
     base_payload: dict[str, Any] = {
         "strategy_id": strategy_id,
+        "policy_fingerprint_sha256": policy_fingerprint,
         "symbol": symbol,
         "timeframe": "4h",
         "shadow_only": True,
@@ -110,7 +134,7 @@ def build_core_trend_shadow_decision(
     # Never treat the newest 4h row as closed. The research contract is
     # closed 4h candle -> next 4h interval exposure.
     closed = close.iloc[:-1]
-    min_closed_bars = int(policy.get("min_closed_bars", 220) or 220)
+    min_closed_bars = int(policy_payload["min_closed_bars"])
     if len(closed) < min_closed_bars:
         return {
             **base_payload,
@@ -119,11 +143,11 @@ def build_core_trend_shadow_decision(
             "closed_bars": int(len(closed)),
         }
 
-    ema_fast = int(policy.get("ema_fast", 50) or 50)
-    ema_slow = int(policy.get("ema_slow", 200) or 200)
-    vol_window = int(policy.get("vol_window_bars", 180) or 180)
-    target_vol = float(policy.get("target_annualized_vol", 0.20) or 0.20)
-    exposure_cap = float(policy.get("per_symbol_exposure_cap", 1.0) or 1.0)
+    ema_fast = int(policy_payload["ema_fast"])
+    ema_slow = int(policy_payload["ema_slow"])
+    vol_window = int(policy_payload["vol_window_bars"])
+    target_vol = float(policy_payload["target_annualized_vol"])
+    exposure_cap = float(policy_payload["per_symbol_exposure_cap"])
 
     fast = closed.ewm(span=ema_fast, adjust=False, min_periods=ema_fast).mean()
     slow = closed.ewm(span=ema_slow, adjust=False, min_periods=ema_slow).mean()
@@ -201,9 +225,10 @@ def build_core_trend_shadow_decision(
     }
 
 
-def _event_identity(payload: dict[str, Any]) -> tuple[str, str, str]:
+def _event_identity(payload: dict[str, Any]) -> tuple[str, str, str, str]:
     return (
         str(payload.get("strategy_id") or ""),
+        str(payload.get("policy_fingerprint_sha256") or ""),
         str(payload.get("symbol") or ""),
         str(payload.get("closed_bar_timestamp") or ""),
     )
@@ -217,7 +242,7 @@ def append_core_trend_shadow_event(
     """Append one unique closed-bar shadow observation.
 
     Runtime loops may execute multiple times inside the same 4h candle. Evidence
-    counts must therefore be keyed by strategy + symbol + last closed 4h candle,
+    counts must therefore be keyed by strategy + policy fingerprint + symbol + last closed 4h candle,
     otherwise repeated observations would inflate sample size and confidence.
     """
     identity = _event_identity(decision)

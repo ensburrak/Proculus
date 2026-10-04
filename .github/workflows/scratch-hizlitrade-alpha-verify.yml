@@ -1,0 +1,35 @@
+name: Scratch HIZLITRADE Alpha Verify
+
+on:
+  push:
+    branches:
+      - scratch/hizlitrade-fresh-oos-20261004
+    paths:
+      - scratch_hizli/hizlitrade/alpha_validation.py
+      - scratch_hizli/hizlitrade/calibration.py
+      - scratch_hizli/hizlitrade/oos.py
+      - scratch_hizli/hizlitrade/validation.py
+      - scratch_hizli/tests/test_alpha_validation.py
+      - .github/workflows/scratch-hizlitrade-alpha-verify.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install "pytest>=8,<9" "pytest-asyncio>=0.24,<1" "ruff>=0.9,<1"
+      - name: Ruff
+        run: ruff check scratch_hizli/hizlitrade/alpha_validation.py scratch_hizli/tests/test_alpha_validation.py
+      - name: Alpha regression tests
+        env:
+          PYTHONPATH: scratch_hizli
+        run: pytest -q scratch_hizli/tests/test_alpha_validation.py

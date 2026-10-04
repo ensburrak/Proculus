@@ -1,0 +1,60 @@
+name: Core Trend Shadow Runtime Validation
+
+on:
+  push:
+    branches:
+      - feat/core-trend-shadow-runtime-20261004
+    paths:
+      - runtime/core_trend_shadow.py
+      - runtime/runtime_loop_services.py
+      - config.json
+      - tests/test_core_trend_shadow.py
+      - tests/test_v2_runtime_integration.py
+      - .github/workflows/core-trend-shadow-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shadow-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-asyncio pandas numpy ruff
+
+      - name: Compile shadow runtime
+        run: |
+          python -m compileall -q runtime/core_trend_shadow.py runtime/runtime_loop_services.py
+
+      - name: Ruff shadow surfaces
+        run: |
+          ruff check             runtime/core_trend_shadow.py             runtime/runtime_loop_services.py             tests/test_core_trend_shadow.py             tests/test_v2_runtime_integration.py
+
+      - name: Run shadow contract tests
+        run: |
+          python -m pytest -q             tests/test_core_trend_shadow.py             tests/test_v2_runtime_integration.py             -o addopts=""
+
+      - name: Verify config is shadow-only
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          cfg=json.loads(Path("config.json").read_text(encoding="utf-8"))
+          lane=cfg["core_trend_shadow"]
+          assert lane["enabled"] is True
+          assert lane["shadow_only"] is True
+          assert lane["order_authorized"] is False
+          assert lane["forward_promotion"]["allow_live"] is False
+          assert lane["forward_promotion"]["require_positive_ci95_low"] is True
+          assert lane["forward_promotion"]["require_real_tca"] is True
+          print("core_trend_shadow=fail_closed")
+          PY

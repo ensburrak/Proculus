@@ -1,0 +1,39 @@
+name: Scratch HIZLITRADE Fresh OOS
+
+on:
+  push:
+    branches:
+      - scratch/hizlitrade-fresh-oos-20261004
+    paths:
+      - scratch_hizli/**
+      - .github/workflows/scratch-hizlitrade-fresh-oos.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-oos:
+    strategy:
+      fail-fast: false
+      matrix:
+        hours: [12, 72]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run vendored HIZLITRADE fresh OOS
+        env:
+          PYTHONPATH: scratch_hizli
+        run: python scratch_hizli/fresh_hizlitrade_backtest.py --hours ${{ matrix.hours }} --output hizlitrade_fresh_${{ matrix.hours }}h.json
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hizlitrade-fresh-${{ matrix.hours }}h
+          path: hizlitrade_fresh_${{ matrix.hours }}h.json
+          if-no-files-found: warn
+          retention-days: 3

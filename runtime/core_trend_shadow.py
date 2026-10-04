@@ -170,6 +170,15 @@ def build_core_trend_shadow_decision(
         except Exception:
             closed_timestamp = None
 
+    entry_reference_price = None
+    if "open" in getattr(frame, "columns", []):
+        try:
+            candidate_open = float(frame["open"].iloc[-1])
+            if math.isfinite(candidate_open) and candidate_open > 0:
+                entry_reference_price = candidate_open
+        except (TypeError, ValueError, IndexError):
+            entry_reference_price = None
+
     return {
         **base_payload,
         "status": "shadow_signal",
@@ -179,6 +188,7 @@ def build_core_trend_shadow_decision(
         "closed_bar_timestamp": closed_timestamp,
         "closed_bars": int(len(closed)),
         "close": close_last,
+        "entry_reference_price": entry_reference_price,
         "ema_fast": fast_last,
         "ema_slow": slow_last,
         "realized_vol_annualized": vol_last,
@@ -191,18 +201,51 @@ def build_core_trend_shadow_decision(
     }
 
 
+def _event_identity(payload: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(payload.get("strategy_id") or ""),
+        str(payload.get("symbol") or ""),
+        str(payload.get("closed_bar_timestamp") or ""),
+    )
+
+
 def append_core_trend_shadow_event(
     decision: dict[str, Any],
     *,
     destination: Path = DEFAULT_EVIDENCE_PATH,
-) -> None:
+) -> bool:
+    """Append one unique closed-bar shadow observation.
+
+    Runtime loops may execute multiple times inside the same 4h candle. Evidence
+    counts must therefore be keyed by strategy + symbol + last closed 4h candle,
+    otherwise repeated observations would inflate sample size and confidence.
+    """
+    identity = _event_identity(decision)
+    if not all(identity):
+        return False
+
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        try:
+            for line in reversed(destination.read_text(encoding="utf-8").splitlines()[-256:]):
+                if not line.strip():
+                    continue
+                try:
+                    previous = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(previous, dict) and _event_identity(previous) == identity:
+                    return False
+        except OSError:
+            raise
+
     payload = {
         "recorded_at": datetime.now(UTC).isoformat(),
         **dict(decision),
     }
     with destination.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return True
 
 
 __all__ = [

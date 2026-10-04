@@ -130,3 +130,18 @@ def test_shadow_evidence_accepts_next_closed_bar_as_new_observation(tmp_path: Pa
     assert append_core_trend_shadow_event(first, destination=destination) is True
     assert append_core_trend_shadow_event(second, destination=destination) is True
     assert len(destination.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_core_trend_shadow_is_not_in_strategy_release_allowlist() -> None:
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    release = config["strategy_release"]
+    shadow = config["core_trend_shadow"]
+
+    assert shadow["strategy_id"] not in set(release["allowed_setup_ids"])
+    assert release["allowed_setup_ids"] == []
+    assert release["allow_live"] is False
+    assert release["allow_testnet"] is False

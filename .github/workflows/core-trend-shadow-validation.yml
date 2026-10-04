@@ -9,7 +9,9 @@ on:
       - runtime/runtime_loop_services.py
       - config.json
       - tests/test_core_trend_shadow.py
+      - tests/test_core_trend_shadow_report.py
       - tests/test_v2_runtime_integration.py
+      - tools/core_trend_shadow_report.py
       - .github/workflows/core-trend-shadow-validation.yml
   workflow_dispatch:
 
@@ -33,7 +35,7 @@ jobs:
 
       - name: Compile shadow runtime
         run: |
-          python -m compileall -q runtime/core_trend_shadow.py runtime/runtime_loop_services.py
+          python -m compileall -q runtime/core_trend_shadow.py runtime/runtime_loop_services.py tools/core_trend_shadow_report.py
 
       - name: Ruff shadow surfaces
         run: |

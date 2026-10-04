@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/profitability-v3-20261003
+      - integration/profitability-v3-setup-release-20261003
   workflow_dispatch:
 
 permissions:

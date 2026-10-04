@@ -142,6 +142,9 @@ def test_chainlink_opening_market_requires_fresh_matching_oracle_reference() -> 
     while not decisions.empty():
         decisions.get_nowait()
 
+    # DecisionTrace throttles an unchanged reason for ten seconds. Advance the
+    # deterministic clock so this assertion observes a new decision cycle.
+    now[0] += 11_000_000_000
     engine.process_event(_consensus("100.08", now[0]))
     missing = decisions.get_nowait()
     assert missing.reason_code == "oracle_reference_missing"

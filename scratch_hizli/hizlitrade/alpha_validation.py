@@ -931,29 +931,14 @@ def fit_policy(
             and edge >= min_edge
         ]
     else:
-        selection_mode = "sequential"
-        consensus = _fit_consensus_threshold(current)
-        current = [
-            trade
-            for trade in current
-            if technical_consensus_score(trade) >= consensus
-        ]
-
-        min_edge, max_spread = _fit_execution_quality(current)
-        if min_edge is not None:
-            filtered: list[SettledTrade] = []
-            for trade in current:
-                edge = _finite(getattr(trade, "net_edge", None))
-                spread = _finite(getattr(trade, "prediction_spread", None))
-                if edge is None or edge < min_edge:
-                    continue
-                if max_spread is not None and (spread is None or spread > max_spread):
-                    continue
-                filtered.append(trade)
-            if _filter_improves(current, filtered):
-                current = filtered
-            else:
-                min_edge, max_spread = None, None
+        # A rejected inner-validated challenger must not silently fall back to
+        # same-sample threshold optimization. Doing so reintroduces the exact
+        # selection bias the chronological validation partition is meant to
+        # prevent. Preserve the already train-fitted symbol/setup/session/regime
+        # portfolio and make the downstream stages explicit no-ops.
+        selection_mode = "no_validated_challenger"
+        consensus = 0.0
+        min_edge, max_spread = None, None
 
     probability_calibration = _fit_probability_calibration(current, config)
     if probability_calibration is not None:

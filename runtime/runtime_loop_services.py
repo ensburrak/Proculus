@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from core.decision_pipeline import DecisionPipeline
+from .core_trend_shadow import (
+    append_core_trend_shadow_event,
+    build_core_trend_shadow_decision,
+)
 from .execution_bridge import execute_decision
 from .runtime_analysis_services import _analyze_one
 from .stochrsi_parallel import build_stochrsi_parallel_decision
@@ -65,6 +69,27 @@ async def trading_loop_async_service(exchange: Any, symbols: list[str], *, runti
                 stoch_decision = dict(stoch_decision)
                 stoch_decision["execution"] = stoch_execution
                 decision["stochrsi_parallel"] = stoch_decision
+
+                core_trend_shadow = build_core_trend_shadow_decision(item, cfg)
+                try:
+                    evidence_path_raw = (
+                        (cfg.get("core_trend_shadow") or {}).get("evidence_path")
+                        if isinstance(cfg.get("core_trend_shadow"), dict)
+                        else None
+                    )
+                    if evidence_path_raw:
+                        append_core_trend_shadow_event(
+                            core_trend_shadow,
+                            destination=ROOT / str(evidence_path_raw),
+                        )
+                    else:
+                        append_core_trend_shadow_event(core_trend_shadow)
+                except OSError as exc:
+                    core_trend_shadow = {
+                        **core_trend_shadow,
+                        "evidence_write_error": f"{type(exc).__name__}: {exc}",
+                    }
+                decision["core_trend_shadow"] = core_trend_shadow
                 latest[symbol] = decision
 
         if once:

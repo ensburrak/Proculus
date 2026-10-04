@@ -1,0 +1,156 @@
+name: Proculus Fresh Two Year Profitability V3
+
+on:
+  push:
+    branches:
+      - integration/profitability-v3-setup-release-20261003
+    paths:
+      - tools/fetch_okx_two_year_replay_data.py
+      - tools/fresh_two_year_v2_backtest.py
+      - tools/walk_forward_edge_validation.py
+      - tools/setup_edge_observatory.py
+      - decision/**
+      - runtime/**
+      - risk/**
+      - research/**
+      - config.json
+      - .github/workflows/profitability-v3-two-year.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proculus-profitability-v3-two-year-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install replay dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas pyarrow requests scipy
+
+      - name: Fetch fresh OKX eligible universe and 730-day 15m/1h/4h history
+        run: |
+          rm -rf scratch/proculus_profitability_v3_730d
+          mkdir -p scratch/proculus_profitability_v3_730d/ohlcv scratch/proculus_profitability_v3_730d/results
+          python tools/fetch_okx_two_year_replay_data.py \
+            --days 730 \
+            --workers 6 \
+            --output-dir scratch/proculus_profitability_v3_730d/ohlcv \
+            --metadata-output scratch/proculus_profitability_v3_730d/fetch_metadata.json
+
+      - name: Run independent V2 and StochRSI90 attribution at 5/15/50 bps
+        run: |
+          python tools/fresh_two_year_v2_backtest.py \
+            --data-dir scratch/proculus_profitability_v3_730d/ohlcv \
+            --days 730 \
+            --initial-balance 10000 \
+            --fee-bps 5 \
+            --slippage-bps 5,15,50 \
+            --modes v2_only,stochrsi90_only,combined_independent \
+            --output scratch/proculus_profitability_v3_730d/results/fresh_two_year_v3.json
+
+      - name: Export 5bps trade evidence for walk-forward
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          src=Path("scratch/proculus_profitability_v3_730d/results/fresh_two_year_v3.json")
+          out=Path("scratch/proculus_profitability_v3_730d/results")
+          payload=json.loads(src.read_text(encoding="utf-8"))
+          for mode in ("v2_only","stochrsi90_only","combined_independent"):
+              rows=payload["scenarios"][mode]["slippage_5bps"].get("trade_evidence",[])
+              path=out/f"{mode}_5bps_trades.jsonl"
+              path.write_text("\n".join(json.dumps(r,separators=(",",":")) for r in rows)+("\n" if rows else ""),encoding="utf-8")
+          PY
+
+      - name: Leakage-safe walk-forward OOS by authority
+        run: |
+          set -e
+          for mode in v2_only stochrsi90_only combined_independent; do
+            input="scratch/proculus_profitability_v3_730d/results/${mode}_5bps_trades.jsonl"
+            output="scratch/proculus_profitability_v3_730d/results/${mode}_walk_forward.json"
+            if [[ -s "${input}" ]]; then
+              python tools/walk_forward_edge_validation.py \
+                --input "${input}" \
+                --output "${output}" \
+                --train-size 250 \
+                --test-size 100 \
+                --purge-size 4 \
+                --embargo-size 4
+            else
+              printf '{"schema":"walk-forward-edge-v1","fold_count":0,"out_of_sample_passed":false,"blockers":["no_trades"]}\n' > "${output}"
+            fi
+          done
+
+      - name: Build setup-level OOS observatory using OOS evidence only
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("scratch/proculus_profitability_v3_730d/results")
+          source=root/"combined_independent_5bps_trades.jsonl"
+          # This is historical OOS research evidence only. No live/paper TCA is fabricated.
+          target=root/"oos_setup_evidence.jsonl"
+          target.write_text(source.read_text(encoding="utf-8") if source.exists() else "",encoding="utf-8")
+          PY
+          python tools/setup_edge_observatory.py \
+            --oos-trades scratch/proculus_profitability_v3_730d/results/oos_setup_evidence.jsonl \
+            --paper-trades scratch/proculus_profitability_v3_730d/results/nonexistent_paper.jsonl \
+            --tca scratch/proculus_profitability_v3_730d/results/nonexistent_tca.json \
+            --output scratch/proculus_profitability_v3_730d/results/setup_edge_observatory.json
+
+      - name: Build compact summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("scratch/proculus_profitability_v3_730d")
+          report=json.loads((root/"results/fresh_two_year_v3.json").read_text())
+          fetch=json.loads((root/"fetch_metadata.json").read_text())
+          summary={
+            "schema":"proculus-profitability-v3-two-year-summary-v1",
+            "previous_backtests_used":False,
+            "downloaded_count":fetch.get("downloaded_count"),
+            "universe":fetch.get("universe"),
+            "candidate_count":report.get("candidate_count"),
+            "scenarios":{},
+            "walk_forward":{},
+          }
+          for mode, scenarios in report.get("scenarios",{}).items():
+              summary["scenarios"][mode]={}
+              for name,p in scenarios.items():
+                  summary["scenarios"][mode][name]={k:p.get(k) for k in (
+                      "return_pct","max_drawdown_pct_realized","trades","win_rate_pct","profit_factor","expectancy_r","fees_paid","funding_paid","skipped_entries"
+                  )}
+              wf_path=root/"results"/f"{mode}_walk_forward.json"
+              summary["walk_forward"][mode]=json.loads(wf_path.read_text()) if wf_path.exists() else {}
+          obs_path=root/"results/setup_edge_observatory.json"
+          summary["setup_edge_observatory"]=json.loads(obs_path.read_text()) if obs_path.exists() else {}
+          (root/"summary.json").write_text(json.dumps(summary,indent=2,ensure_ascii=False),encoding="utf-8")
+          print("PROCULUS_V3_RESULT="+json.dumps(summary,separators=(",",":"),ensure_ascii=False))
+          PY
+
+      - name: Upload fresh two-year artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proculus-profitability-v3-two-year
+          path: |
+            scratch/proculus_profitability_v3_730d/fetch_metadata.json
+            scratch/proculus_profitability_v3_730d/summary.json
+            scratch/proculus_profitability_v3_730d/results/*.json
+            scratch/proculus_profitability_v3_730d/results/*.jsonl
+          retention-days: 14
+          if-no-files-found: error

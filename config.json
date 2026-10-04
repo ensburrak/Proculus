@@ -1852,5 +1852,40 @@
       "require_walk_forward_pass": true,
       "require_paper_shadow_evidence": true
     }
+  },
+  "core_trend_shadow": {
+    "enabled": true,
+    "shadow_only": true,
+    "order_authorized": false,
+    "strategy_id": "core_trend_4h_ema50_200_voltarget.v1",
+    "universe": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "AAVE",
+      "LINK",
+      "LTC",
+      "BCH",
+      "ADA"
+    ],
+    "ema_fast": 50,
+    "ema_slow": 200,
+    "vol_window_bars": 180,
+    "min_closed_bars": 220,
+    "target_annualized_vol": 0.2,
+    "per_symbol_exposure_cap": 1,
+    "evidence_path": "reports/core_trend_shadow_events.jsonl",
+    "forward_promotion": {
+      "min_shadow_days": 30,
+      "min_observations": 180,
+      "min_profit_factor": 1.2,
+      "min_expectancy_r": 0.05,
+      "require_positive_ci95_low": true,
+      "require_real_tca": true,
+      "allow_live": false
+    }
   }
 }

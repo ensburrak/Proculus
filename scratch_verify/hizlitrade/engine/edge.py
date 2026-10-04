@@ -309,12 +309,19 @@ class EdgeEngine:
     def invalidate_venue(self, venue: Venue) -> None:
         if venue in _SPOT_VENUES:
             self.latest_consensus.clear()
-        stale_oracles = [key for key in self.latest_oracles if key[1] is venue]
-        for key in stale_oracles:
-            self.latest_oracles.pop(key, None)
-        stale = [key for key, quote in self.latest_quotes.items() if quote.venue is venue]
-        for key in stale:
-            self.latest_quotes.pop(key, None)
+        stale_oracles = [
+            oracle_key for oracle_key in self.latest_oracles
+            if oracle_key[1] is venue
+        ]
+        for oracle_key in stale_oracles:
+            self.latest_oracles.pop(oracle_key, None)
+        stale_quotes = [
+            quote_key
+            for quote_key, quote in self.latest_quotes.items()
+            if quote.venue is venue
+        ]
+        for quote_key in stale_quotes:
+            self.latest_quotes.pop(quote_key, None)
 
     def _capture_opening_strikes(self, event: OraclePrice) -> list[BinaryMarketSpec]:
         affected: list[BinaryMarketSpec] = []

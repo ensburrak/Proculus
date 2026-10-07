@@ -1,0 +1,43 @@
+name: AutoTraderBot V5 Integrated Crosscheck
+
+on:
+  push:
+    branches:
+      - research/atb-v5-integrated-crosscheck-20261008
+    paths:
+      - tools/atb_v5_integrated_crosscheck.py
+      - .github/workflows/atb-v5-integrated-crosscheck.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atb-v5-integrated-crosscheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integrated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pandas numpy requests
+
+      - name: Run locked 730-day integrated cross-check
+        run: python tools/atb_v5_integrated_crosscheck.py
+
+      - name: Upload integrated evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atb-v5-integrated-crosscheck
+          path: atb_v5_integrated_crosscheck_result.json
+          if-no-files-found: warn
+          retention-days: 30

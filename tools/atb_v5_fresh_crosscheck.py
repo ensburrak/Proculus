@@ -119,6 +119,41 @@ def fetch_history(symbol: str, days: int = 220) -> pd.DataFrame:
     )
 
 
+def validate_locked_cadence(
+    frames: dict[str, pd.DataFrame],
+    *,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+) -> dict[str, Any]:
+    expected = pd.Timedelta(minutes=15)
+    details: dict[str, Any] = {}
+    for symbol, frame in frames.items():
+        times = pd.DatetimeIndex(pd.to_datetime(frame["timestamp"], utc=True))
+        window = times[(times >= start) & (times <= end)]
+        if len(window) < 2:
+            raise RuntimeError(f"insufficient locked-window bars: {symbol}")
+        if window.has_duplicates:
+            raise RuntimeError(f"duplicate timestamps: {symbol}")
+        deltas = window[1:] - window[:-1]
+        if bool((deltas != expected).any()):
+            bad = int((deltas != expected).argmax())
+            raise RuntimeError(
+                f"15m cadence gap {symbol}: {window[bad]} -> {window[bad+1]} "
+                f"delta={deltas[bad]}"
+            )
+        details[symbol] = {
+            "bars": len(window),
+            "first": window[0].isoformat(),
+            "last": window[-1].isoformat(),
+        }
+    return {
+        "passed": True,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "symbols": details,
+    }
+
+
 def _to_float_series(values: Any) -> pd.Series:
     if isinstance(values, pd.Series):
         return values.astype(float)
@@ -630,6 +665,11 @@ def main() -> None:
     holdout_days = (data_end - HOLDOUT_START).total_seconds() / 86400.0
     if holdout_days < 90:
         raise SystemExit(f"fresh holdout shorter than 90 days: {holdout_days:.2f}")
+    data_integrity = validate_locked_cadence(
+        frames,
+        start=HOLDOUT_START - pd.Timedelta(days=40),
+        end=data_end,
+    )
 
     signals = generate_signals(frames)
     primary, by_symbol = simulate(frames, signals, 5.0)
@@ -664,6 +704,7 @@ def main() -> None:
         "holdout_start": HOLDOUT_START.isoformat(),
         "data_end": data_end.isoformat(),
         "holdout_days": round(holdout_days, 3),
+        "data_integrity": data_integrity,
         "5bps": primary,
         "15bps": stress,
         "by_symbol_5bps": by_symbol,

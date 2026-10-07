@@ -388,6 +388,209 @@ def simulate(
     return _stats(pooled), {s: _stats(v) for s, v in sorted(by_symbol_values.items())}
 
 
+def portfolio_simulate(
+    frames: dict[str, pd.DataFrame],
+    signals: dict[str, list[ResearchSignal]],
+    *,
+    slip_bps: float,
+    outcome_complete_cutoff: pd.Timestamp | None = None,
+    initial: float = 10_000.0,
+) -> dict[str, Any]:
+    fee = TAKER_FEE = 0.0005
+    risk_per_trade = 0.0025
+    wallet_cap = 0.20
+    max_positions = 2
+    cooldown_seconds = 39 * 60
+    daily_limit = 0.005
+    weekly_limit = 0.02
+    reduce_threshold = 0.50
+    hedge_threshold = 0.75
+
+    candidates: list[tuple[pd.Timestamp, str, ResearchSignal]] = []
+    for symbol, symbol_signals in signals.items():
+        frame = frames[symbol]
+        for signal in symbol_signals:
+            entry_idx = int(signal.decision_idx) + 1
+            if entry_idx <= 0 or entry_idx >= len(frame):
+                continue
+            entry_time = pd.Timestamp(frame.iloc[entry_idx]["timestamp"])
+            if entry_time < HOLDOUT_START:
+                continue
+            if outcome_complete_cutoff is not None and entry_time > outcome_complete_cutoff:
+                continue
+            candidates.append((entry_time, symbol, signal))
+    candidates.sort(key=lambda item: (item[0], item[1], item[2].setup_id))
+
+    cash = float(initial)
+    positions: list[dict[str, Any]] = []
+    closed: list[dict[str, Any]] = []
+    last_entry: dict[str, pd.Timestamp] = {}
+    daily_realized: dict[str, float] = defaultdict(float)
+    weekly_realized: dict[str, float] = defaultdict(float)
+    blocked: dict[str, int] = defaultdict(int)
+    equity_curve = [float(initial)]
+
+    def local_keys(ts: pd.Timestamp) -> tuple[str, str]:
+        local = ts.tz_convert("Europe/Istanbul")
+        return local.strftime("%Y-%m-%d"), local.strftime("%Y-W%W")
+
+    def current_close(symbol: str, ts: pd.Timestamp) -> float:
+        frame = frames[symbol]
+        times = pd.DatetimeIndex(pd.to_datetime(frame["timestamp"], utc=True))
+        idx = int(times.searchsorted(ts, side="right")) - 1
+        idx = max(0, min(idx, len(frame) - 1))
+        return float(frame.iloc[idx]["close"])
+
+    def mark_equity(ts: pd.Timestamp) -> float:
+        equity = cash
+        for pos in positions:
+            price = current_close(str(pos["symbol"]), ts)
+            sign = 1.0 if pos["side"] == "long" else -1.0
+            qty = float(pos["notional"]) / max(float(pos["fill"]), 1e-12)
+            equity += (price - float(pos["fill"])) * qty * sign
+        return equity
+
+    def realize(ts: pd.Timestamp) -> None:
+        nonlocal cash, positions
+        remaining = []
+        for pos in positions:
+            if pd.Timestamp(pos["exit_time"]) <= ts:
+                # entry fee was already deducted when the position was opened.
+                cash += float(pos["net_pnl"]) + float(pos["entry_fee"])
+                closed.append(pos)
+                day_key, week_key = local_keys(pd.Timestamp(pos["exit_time"]))
+                daily_realized[day_key] += float(pos["net_pnl"])
+                weekly_realized[week_key] += float(pos["net_pnl"])
+            else:
+                remaining.append(pos)
+        positions = remaining
+        equity_curve.append(mark_equity(ts))
+
+    slip = float(slip_bps) / 10000.0
+    for entry_time, symbol, signal in candidates:
+        realize(entry_time)
+        equity = max(0.0, mark_equity(entry_time))
+        if equity <= 0.0:
+            blocked["equity_depleted"] += 1
+            continue
+
+        day_key, week_key = local_keys(entry_time)
+        daily_loss = abs(min(daily_realized.get(day_key, 0.0), 0.0))
+        weekly_loss = abs(min(weekly_realized.get(week_key, 0.0), 0.0))
+        daily_abs = equity * daily_limit
+        weekly_abs = equity * weekly_limit
+        daily_progress = daily_loss / daily_abs if daily_abs > 0 else 0.0
+        weekly_progress = weekly_loss / weekly_abs if weekly_abs > 0 else 0.0
+
+        if weekly_progress >= 1.0:
+            blocked["weekly_loss_stop"] += 1
+            continue
+        if daily_progress >= 1.0:
+            blocked["daily_loss_stop"] += 1
+            continue
+        if daily_progress >= hedge_threshold:
+            blocked["daily_hedge_only"] += 1
+            continue
+        risk_multiplier = 0.5 if (
+            daily_progress >= reduce_threshold or weekly_progress >= 0.75
+        ) else 1.0
+
+        prior = last_entry.get(symbol)
+        if prior is not None and (entry_time - prior).total_seconds() < cooldown_seconds:
+            blocked["trade_cooldown"] += 1
+            continue
+        if len(positions) >= max_positions:
+            blocked["max_open_positions"] += 1
+            continue
+        if any(pos["symbol"] == symbol for pos in positions):
+            blocked["symbol_already_open"] += 1
+            continue
+
+        frame = frames[symbol]
+        result = _trade_r(frame, signal, fee_bps=5.0, slip_bps=slip_bps)
+        if result is None:
+            blocked["invalid_trade_path"] += 1
+            continue
+        r_value, exit_idx = result
+        entry_idx = int(signal.decision_idx) + 1
+        fill = _adverse_entry(float(frame.iloc[entry_idx]["open"]), signal.side, slip)
+        atr = float(signal.atr_value or 0.0)
+        stop_distance = atr * max(float(signal.stop_atr_mult), 0.1)
+        stop_pct = stop_distance / max(fill, 1e-12)
+        if stop_pct <= 0:
+            blocked["invalid_stop"] += 1
+            continue
+
+        effective_scale = risk_multiplier
+        risk_budget = equity * risk_per_trade * effective_scale
+        notional = min(
+            risk_budget / stop_pct,
+            equity * wallet_cap * effective_scale,
+        )
+        used_margin = sum(float(pos["notional"]) for pos in positions)
+        if notional <= 0 or used_margin + notional > equity * 0.95:
+            blocked["margin_cap"] += 1
+            continue
+
+        risk_usd = notional * stop_pct
+        net_pnl = float(r_value) * risk_usd
+        entry_fee = notional * fee
+        cash -= entry_fee
+        positions.append(
+            {
+                "symbol": symbol,
+                "side": signal.side,
+                "entry_time": entry_time,
+                "exit_time": pd.Timestamp(frame.iloc[int(exit_idx)]["timestamp"]),
+                "fill": fill,
+                "notional": notional,
+                "risk_usd": risk_usd,
+                "r_value": float(r_value),
+                "net_pnl": net_pnl,
+                "entry_fee": entry_fee,
+            }
+        )
+        last_entry[symbol] = entry_time
+        equity_curve.append(mark_equity(entry_time))
+
+    if candidates:
+        realize(pd.Timestamp.max.tz_localize("UTC"))
+
+    pnls = [float(pos["net_pnl"]) for pos in closed]
+    rvals = [float(pos["r_value"]) for pos in closed]
+    wins = [value for value in pnls if value > 0]
+    losses = [value for value in pnls if value < 0]
+    peak = -float("inf")
+    max_drawdown = 0.0
+    for equity in equity_curve:
+        peak = max(peak, equity)
+        if peak > 0:
+            max_drawdown = min(max_drawdown, (equity - peak) / peak)
+
+    gross_win = sum(wins)
+    gross_loss = abs(sum(losses))
+    return {
+        "initial_balance": round(initial, 4),
+        "final_balance": round(cash, 4),
+        "return_pct": round(100.0 * (cash / initial - 1.0), 4),
+        "max_drawdown_pct": round(abs(max_drawdown) * 100.0, 4),
+        "trades": len(closed),
+        "win_rate_pct": round(100.0 * len(wins) / max(1, len(closed)), 4),
+        "profit_factor": round(gross_win / gross_loss, 5) if gross_loss > 0 else (999.0 if wins else 0.0),
+        "expectancy_r": round(sum(rvals) / max(1, len(rvals)), 5),
+        "blocked_entries": dict(sorted(blocked.items())),
+        "risk_controls": {
+            "max_open_positions": max_positions,
+            "trade_cooldown_min": 39,
+            "daily_loss_limit_pct": daily_limit,
+            "weekly_loss_limit_pct": weekly_limit,
+            "risk_per_trade_pct": risk_per_trade,
+            "wallet_cap_pct": wallet_cap,
+            "leverage": 1.0,
+        },
+    }
+
+
 def evaluate(primary: dict[str, Any], stress: dict[str, Any], by_symbol: dict[str, dict[str, Any]]):
     evaluable = {s: st for s, st in by_symbol.items() if int(st.get("trades") or 0) >= 10}
     positive = [
@@ -433,6 +636,25 @@ def main() -> None:
     stress, _ = simulate(frames, signals, 15.0)
     decision = evaluate(primary, stress, by_symbol)
 
+    outcome_complete_cutoff = data_end - pd.Timedelta(days=10)
+    portfolio = {
+        "5bps": portfolio_simulate(frames, signals, slip_bps=5.0),
+        "15bps": portfolio_simulate(frames, signals, slip_bps=15.0),
+        "50bps": portfolio_simulate(frames, signals, slip_bps=50.0),
+        "outcome_complete_5bps": portfolio_simulate(
+            frames,
+            signals,
+            slip_bps=5.0,
+            outcome_complete_cutoff=outcome_complete_cutoff,
+        ),
+        "outcome_complete_15bps": portfolio_simulate(
+            frames,
+            signals,
+            slip_bps=15.0,
+            outcome_complete_cutoff=outcome_complete_cutoff,
+        ),
+    }
+
     result = {
         "schema": "atb-v5-independent-crosscheck-v1",
         "source_definition": "AutoTraderBot d8b8def/fde1da6 V5 logic copied verbatim where material",
@@ -446,6 +668,8 @@ def main() -> None:
         "15bps": stress,
         "by_symbol_5bps": by_symbol,
         "decision": decision,
+        "portfolio_integrated": portfolio,
+        "outcome_complete_cutoff": outcome_complete_cutoff.isoformat(),
         "notes": [
             "Uses confirmed OKX 15m public candles and completed 4h bars only.",
             "Entries occur on next 15m open after the completed 4h signal.",

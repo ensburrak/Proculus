@@ -572,7 +572,6 @@ def safe_write_text(
     text: str,
     *,
     encoding: str = "utf-8",
-    newline: str | None = None,
     warn_on_failure: bool = True,
 ) -> bool:
     """Atomically write text with the same lock discipline used for JSON."""
@@ -591,7 +590,7 @@ def safe_write_text(
             try:
                 tmp_name = f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
                 tmp_path = path.with_name(tmp_name)
-                tmp_path.write_text(text, encoding=encoding, newline=newline)
+                tmp_path.write_text(text, encoding=encoding)
                 os.replace(str(tmp_path), str(path))
                 return True
             finally:
@@ -604,7 +603,7 @@ def safe_write_text(
     except BEST_EFFORT_EXCEPTIONS as exc:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding=encoding, newline=newline)
+            path.write_text(text, encoding=encoding)
             if warn_on_failure:
                 _warn_once(path, "atomic_io text write degraded to direct write", exc)
             return True
@@ -642,6 +641,28 @@ def safe_read_json(path: Union[Path, str], default: Any = None) -> Any:
                 _release_lock(fd, lp)
     except BEST_EFFORT_EXCEPTIONS:
         return default
+
+
+def durable_append_jsonl(path: Union[Path, str], record: Any) -> bool:
+    """Synchronously append one JSONL record before returning.
+
+    Intended for small ordering-sensitive ledgers with immediate read-after-write.
+    Normal telemetry should keep using safe_append_jsonl.
+    """
+    path = _normalize_path(path)
+    _assert_test_write_allowed(path)
+    try:
+        with file_lock(path, timeout=10):
+            _append_jsonl_direct(path, record)
+        return True
+    except BEST_EFFORT_EXCEPTIONS as exc:
+        try:
+            _append_jsonl_direct(path, record)
+            _warn_once(path, "atomic_io durable jsonl append degraded to direct append", exc)
+            return True
+        except BEST_EFFORT_EXCEPTIONS as fallback_exc:
+            _warn_once(path, "atomic_io durable jsonl append failed", fallback_exc)
+            return False
 
 
 def safe_append_jsonl(path: Union[Path, str], record: Any) -> bool:

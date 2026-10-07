@@ -697,7 +697,7 @@ def main() -> None:
 
     result = {
         "schema": "atb-v5-independent-crosscheck-v1",
-        "source_definition": "AutoTraderBot d8b8def/fde1da6 V5 logic copied verbatim where material",
+        "source_definition": "AutoTraderBot 22b7fb0e90a1137e1c524fae299261e13bb9ecd6 V5 signal plus integrated portfolio/risk logic mirrored where material",
         "research_only": True,
         "execution_authority": False,
         "symbols": list(SYMBOLS),

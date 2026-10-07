@@ -1,0 +1,73 @@
+name: ATB V5 Shadow Validation
+
+on:
+  push:
+    branches:
+      - validation/atb-v5-shadow-20261008
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validation dependencies
+        run: python -m pip install --upgrade pip pytest numpy pandas pyarrow requests ruff
+      - name: Ruff exact mirrored V5 surfaces
+        run: |
+          ruff check \
+            core/feature_flags.py \
+            decision/v5_breadth_shadow.py \
+            research/v5_shadow_gate.py \
+            research/v5_shadow_outcomes.py \
+            tools/v5_shadow_report.py \
+            tools/v5_shadow_outcome_report.py \
+            tools/v5_public_shadow_observer.py \
+            tests/unit/test_feature_flags_unit.py \
+            tests/unit/test_v5_breadth_shadow_unit.py \
+            tests/unit/test_v5_shadow_gate_unit.py \
+            tests/unit/test_v5_shadow_outcomes_unit.py \
+            tests/unit/test_v5_shadow_outcome_report_unit.py \
+            tests/unit/test_v5_public_shadow_observer_unit.py
+      - name: Compile exact mirrored runtime surfaces
+        run: |
+          python -m py_compile \
+            decision/controller_batch_service.py \
+            decision/v5_breadth_shadow.py \
+            research/v5_shadow_gate.py \
+            research/v5_shadow_outcomes.py \
+            tools/v5_shadow_report.py \
+            tools/v5_shadow_outcome_report.py \
+            tools/v5_public_shadow_observer.py
+      - name: Run exact mirrored V5 unit tests
+        env:
+          TESTING: "0"
+        run: |
+          pytest -q \
+            tests/unit/test_feature_flags_unit.py \
+            tests/unit/test_v5_breadth_shadow_unit.py \
+            tests/unit/test_v5_shadow_gate_unit.py \
+            tests/unit/test_v5_shadow_outcomes_unit.py \
+            tests/unit/test_v5_shadow_outcome_report_unit.py \
+            tests/unit/test_v5_public_shadow_observer_unit.py
+      - name: Parse Windows observer script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "scripts/run_v5_public_shadow_observer.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }

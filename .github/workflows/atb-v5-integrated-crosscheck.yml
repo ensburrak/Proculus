@@ -30,6 +30,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip pandas numpy requests
 
+      # Fresh rerun requested 2026-10-09. Locked model and parameters unchanged.
       - name: Run locked 730-day integrated cross-check
         run: python tools/atb_v5_integrated_crosscheck.py
 

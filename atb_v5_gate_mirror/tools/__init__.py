@@ -1,0 +1,1 @@
+# Snapshot copied from AutoTraderBot for isolated safety verification.\n

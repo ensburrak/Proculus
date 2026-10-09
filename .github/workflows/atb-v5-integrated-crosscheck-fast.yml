@@ -23,6 +23,7 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: python -m pip install --upgrade pip pandas numpy requests
+      # Independent fresh seed-parity run requested 2026-10-09; no signal changes.
       - name: Run locked integrated cross-check
         run: python tools/atb_v5_integrated_crosscheck_fast.py
       - name: Upload integrated evidence

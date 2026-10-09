@@ -1,0 +1,32 @@
+name: ATB V5 Frozen Safety Snapshot
+
+on:
+  push:
+    branches:
+      - validation/atb-v5-shadow-20261008
+    paths:
+      - atb_v5_gate_mirror/**
+      - .github/workflows/atb-v5-safety-snapshot-20261009.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: python -m pip install pytest
+      - name: Test exact V5 safety source snapshots
+        working-directory: atb_v5_gate_mirror
+        run: |
+          python -m pytest -q \
+            tests/test_oos_setup_gate_unit.py \
+            tests/test_v5_cost_safety_unit.py \
+            tests/test_v5_shadow_evidence_report_unit.py
